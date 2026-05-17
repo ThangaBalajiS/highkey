@@ -113,34 +113,49 @@ export class ShortcutEngine {
     return null;
   }
 
-  private deepQuerySelector(shortcut: any, root: Document | ShadowRoot = document): HTMLElement | null {
+  private deepQuerySelector(shortcut: any): HTMLElement | null {
     const { selector, innerText } = shortcut;
     
-    // Try to find the element by selector
-    const candidates = Array.from(root.querySelectorAll(selector)) as HTMLElement[];
+    // 1. Gather all candidates across entire page (including Shadow DOM)
+    const allMatching = this.findAllDeep(selector);
     
-    // Filter by text content if available
+    if (allMatching.length === 0) return null;
+
+    // 2. Exact match check: Does any candidate match both selector AND text perfectly?
     if (innerText && innerText.trim()) {
-      const targetText = innerText.trim();
-      const bestMatch = candidates.find(c => c.innerText?.trim() === targetText);
+      const targetText = innerText.trim().toLowerCase();
+      
+      const bestMatch = allMatching.find(el => el.innerText?.trim().toLowerCase() === targetText);
       if (bestMatch) return bestMatch;
       
-      const partialMatch = candidates.find(c => c.innerText?.trim().includes(targetText));
+      const partialMatch = allMatching.find(el => el.innerText?.trim().toLowerCase().includes(targetText));
       if (partialMatch) return partialMatch;
-    } else if (candidates.length > 0) {
-      return candidates[0];
+      
+      // If we have text but NONE of the candidates match that text, 
+      // we DON'T just click the first one (that causes mis-clicks like hitting the logo).
+      console.warn(`Highkey: Found ${allMatching.length} elements for "${selector}", but none match the text "${targetText}".`);
+      return null;
     }
 
-    // Recurse into Shadow Roots
-    const allElements = root.querySelectorAll('*');
-    for (const item of Array.from(allElements)) {
-      if (item.shadowRoot) {
-        const found = this.deepQuerySelector(shortcut, item.shadowRoot);
-        if (found) return found;
+    // 3. If no text filter, and it's truly unique, return it.
+    if (allMatching.length === 1) return allMatching[0];
+
+    // 4. Fallback: Return the first visible one ONLY if we have no better options
+    return allMatching.find(el => el.offsetWidth > 0 || el.offsetHeight > 0) || null;
+  }
+
+  private findAllDeep(selector: string, root: Document | ShadowRoot = document): HTMLElement[] {
+    let elements = Array.from(root.querySelectorAll(selector)) as HTMLElement[];
+    
+    // Recurse into all shadow roots
+    const all = root.querySelectorAll('*');
+    for (const el of Array.from(all)) {
+      if (el.shadowRoot) {
+        elements = [...elements, ...this.findAllDeep(selector, el.shadowRoot)];
       }
     }
-
-    return null;
+    
+    return elements;
   }
 
   private async simulateFullClick(el: HTMLElement) {
