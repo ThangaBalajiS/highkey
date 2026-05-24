@@ -3,9 +3,13 @@
   "name": "Highkey - The Visual Binder",
   "version": "1.0.0",
   "description": "Assign custom keyboard shortcuts to any UI element without CSS selectors.",
+  "icons": {
+    "128": "public/icon.svg"
+  },
   "permissions": ["storage", "activeTab", "scripting"],
   "action": {
-    "default_popup": "src/popup/index.html"
+    "default_popup": "src/popup/index.html",
+    "default_icon": "public/icon.svg"
   },
   "options_page": "src/dashboard/index.html",
   "background": {
