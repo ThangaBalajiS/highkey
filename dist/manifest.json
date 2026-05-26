@@ -4,7 +4,10 @@
   "version": "1.0.0",
   "description": "Assign custom keyboard shortcuts to any UI element without CSS selectors.",
   "icons": {
-    "128": "public/icon.svg"
+    "16": "public/logo_16.png",
+    "32": "public/logo_32.png",
+    "48": "public/logo_48.png",
+    "128": "public/logo_128.png"
   },
   "permissions": [
     "storage",
@@ -13,7 +16,7 @@
   ],
   "action": {
     "default_popup": "src/popup/index.html",
-    "default_icon": "public/icon.svg"
+    "default_icon": "public/logo_48.png"
   },
   "options_page": "src/dashboard/index.html",
   "background": {
