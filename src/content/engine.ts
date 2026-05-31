@@ -18,7 +18,7 @@ export class ShortcutEngine {
   private async loadShortcuts() {
     const domain = window.location.hostname;
     const data = await chrome.storage.local.get('shortcuts');
-    const allShortcuts = data.shortcuts || {};
+    const allShortcuts: any = data.shortcuts || {};
     this.shortcuts = allShortcuts[domain] || [];
     console.log(`Highkey: Loaded ${this.shortcuts.length} shortcuts for ${domain}`);
   }

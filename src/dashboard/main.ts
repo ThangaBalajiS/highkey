@@ -1,4 +1,8 @@
-const contentDiv = document.getElementById('dashboard-content');
+export {};
+
+const tableBody = document.getElementById('shortcut-table-body');
+const statsEl = document.getElementById('shortcut-stats');
+const searchInput = document.getElementById('search-input') as HTMLInputElement;
 const editModal = document.getElementById('edit-modal') as HTMLElement;
 const modalLabel = document.getElementById('modal-label') as HTMLInputElement;
 const modalSelector = document.getElementById('modal-selector') as HTMLInputElement;
@@ -9,150 +13,118 @@ const modalCancel = document.getElementById('modal-cancel') as HTMLButtonElement
 let currentEditItem: any = null;
 let currentEditDomain: string = '';
 let capturedShortcut: any = null;
-
-let expandedDomains: Set<string> = new Set();
-let isFirstLoad = true;
+let allShortcuts: { domain: string, shortcut: any }[] = [];
 
 async function loadDashboard() {
   const data = await chrome.storage.local.get('shortcuts');
-  const shortcuts = data.shortcuts || {};
+  const shortcutsMap: Record<string, any> = data.shortcuts || {};
   
-  if (Object.keys(shortcuts).length === 0) {
-    if (contentDiv) contentDiv.innerHTML = '<div class="empty-state">No shortcuts found. Start binding!</div>';
+  allShortcuts = [];
+  for (const [domain, list] of Object.entries(shortcutsMap)) {
+    (list as any[]).forEach(s => {
+      allShortcuts.push({ domain, shortcut: s });
+    });
+  }
+
+  renderTable();
+}
+
+function renderTable() {
+  if (!tableBody || !statsEl) return;
+
+  const query = searchInput.value.toLowerCase();
+  const filtered = allShortcuts.filter(item => {
+    const label = (item.shortcut.label || '').toLowerCase();
+    const domain = item.domain.toLowerCase();
+    const selector = (item.shortcut.selector || '').toLowerCase();
+    return label.includes(query) || domain.includes(query) || selector.includes(query);
+  });
+
+  tableBody.innerHTML = '';
+  
+  if (filtered.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No shortcuts found.</td></tr>';
+    statsEl.textContent = 'Showing 0 shortcuts';
     return;
   }
 
-  if (contentDiv) {
-    contentDiv.innerHTML = '';
-    
-    const domains = Object.keys(shortcuts);
-    
-    // On first load, expand the first domain automatically
-    if (isFirstLoad && domains.length > 0) {
-      expandedDomains.add(domains[0]);
-      isFirstLoad = false;
+  // Group by domain
+  const grouped: Record<string, typeof filtered> = {};
+  filtered.forEach(item => {
+    if (!grouped[item.domain]) {
+      grouped[item.domain] = [];
     }
+    grouped[item.domain].push(item);
+  });
 
-    for (const [domain, list] of Object.entries(shortcuts)) {
-      const domainContainer = document.createElement('div');
-      domainContainer.className = `domain-group ${expandedDomains.has(domain) ? 'open' : ''}`;
+  for (const [domain, items] of Object.entries(grouped)) {
+    // Add Domain Header Row
+    const headerRow = document.createElement('tr');
+    const headerTd = document.createElement('td');
+    headerTd.colSpan = 4;
+    headerTd.style.background = 'oklch(99% 0.001 250)';
+    headerTd.style.fontWeight = '600';
+    headerTd.style.color = 'var(--fg)';
+    headerTd.style.fontSize = '12px';
+    headerTd.style.textTransform = 'uppercase';
+    headerTd.style.letterSpacing = '0.05em';
+    headerTd.textContent = domain;
+    headerRow.appendChild(headerTd);
+    tableBody.appendChild(headerRow);
+
+    // Add Shortcut Rows
+    items.sort((a, b) => b.shortcut.createdAt - a.shortcut.createdAt).forEach(item => {
+      const row = document.createElement('tr');
       
-      const domainHeader = document.createElement('div');
-      domainHeader.className = 'domain-header';
-      domainHeader.textContent = domain;
-      domainHeader.onclick = () => {
-        if (expandedDomains.has(domain)) {
-          expandedDomains.delete(domain);
-          domainContainer.classList.remove('open');
-        } else {
-          expandedDomains.add(domain);
-          domainContainer.classList.add('open');
-        }
-      };
+      const nameTd = document.createElement('td');
+      nameTd.style.fontWeight = '500';
+      nameTd.textContent = item.shortcut.label || 'Unnamed Shortcut';
       
-      const domainBody = document.createElement('div');
-      domainBody.className = 'domain-body';
-
-      const items = (list as any[]).sort((a, b) => b.createdAt - a.createdAt);
-      const globalItems = items.filter(i => i.scope === 'domain' || !i.scope);
-      const routeItems = items.filter(i => i.scope === 'path');
-
-      // 1. Render Global Section
-      if (globalItems.length > 0) {
-        const title = document.createElement('div');
-        title.className = 'section-title';
-        title.textContent = 'Global Shortcuts';
-        domainBody.appendChild(title);
-        globalItems.forEach(item => domainBody.appendChild(createShortcutRow(domain, item)));
-      }
-
-      // 2. Render Route Section
-      if (routeItems.length > 0) {
-        const title = document.createElement('div');
-        title.className = 'section-title';
-        title.textContent = 'Route Specific';
-        domainBody.appendChild(title);
-
-        const groupedByPath: Record<string, any[]> = {};
-        routeItems.forEach(item => {
-          if (!groupedByPath[item.path]) groupedByPath[item.path] = [];
-          groupedByPath[item.path].push(item);
-        });
-
-        for (const [path, subItems] of Object.entries(groupedByPath)) {
-          const routeGroup = document.createElement('div');
-          routeGroup.className = 'route-group';
-          const routeHeader = document.createElement('div');
-          routeHeader.className = 'route-header';
-          const pathSpan = document.createElement('span');
-          pathSpan.className = 'route-path';
-          pathSpan.textContent = path;
-          
-          const editBtn = document.createElement('button');
-          editBtn.className = 'btn-sm edit-btn';
-          editBtn.textContent = 'Edit Pattern';
-          editBtn.onclick = (e) => {
-            e.stopPropagation();
-            enterPathEditMode(routeHeader, domain, path);
-          };
-
-          routeHeader.appendChild(pathSpan);
-          routeHeader.appendChild(editBtn);
-          routeGroup.appendChild(routeHeader);
-          subItems.forEach(item => routeGroup.appendChild(createShortcutRow(domain, item)));
-          domainBody.appendChild(routeGroup);
-        }
-      }
-
-      domainContainer.appendChild(domainHeader);
-      domainContainer.appendChild(domainBody);
-      contentDiv.appendChild(domainContainer);
-    }
+      const selectorTd = document.createElement('td');
+      const selectorSpan = document.createElement('span');
+      selectorSpan.className = 'selector-code';
+      selectorSpan.title = item.shortcut.selector;
+      selectorSpan.textContent = item.shortcut.selector;
+      selectorTd.appendChild(selectorSpan);
+      
+      const shortcutTd = document.createElement('td');
+      const shortcutSpan = document.createElement('span');
+      shortcutSpan.className = 'shortcut-badge';
+      shortcutSpan.textContent = formatShortcut(item.shortcut.shortcut);
+      shortcutTd.appendChild(shortcutSpan);
+      
+      const actionsTd = document.createElement('td');
+      actionsTd.style.fontWeight = '500';
+      
+      const editBtn = document.createElement('span');
+      editBtn.style.color = 'var(--accent)';
+      editBtn.style.cursor = 'pointer';
+      editBtn.style.marginRight = '12px';
+      editBtn.textContent = 'Edit';
+      editBtn.onclick = () => openModal(item.domain, item.shortcut);
+      
+      const delBtn = document.createElement('span');
+      delBtn.style.color = 'var(--danger)';
+      delBtn.style.cursor = 'pointer';
+      delBtn.textContent = 'Delete';
+      delBtn.onclick = () => deleteShortcut(item.domain, item.shortcut.id);
+      
+      actionsTd.appendChild(editBtn);
+      actionsTd.appendChild(delBtn);
+      
+      row.appendChild(nameTd);
+      row.appendChild(selectorTd);
+      row.appendChild(shortcutTd);
+      row.appendChild(actionsTd);
+      
+      tableBody.appendChild(row);
+    });
   }
+
+  statsEl.textContent = `Showing ${filtered.length} of ${allShortcuts.length} shortcuts`;
 }
 
-function createShortcutRow(domain: string, item: any) {
-  const container = document.createElement('div');
-  container.className = 'shortcut-item';
-  
-  const main = document.createElement('div');
-  main.className = 'shortcut-main';
-  
-  const info = document.createElement('div');
-  info.className = 'shortcut-info';
-  
-  const key = document.createElement('span');
-  key.className = 'key-badge';
-  key.textContent = formatShortcut(item.shortcut);
-  
-  const label = document.createElement('span');
-  label.className = 'label-text';
-  label.textContent = item.label || 'Unnamed Shortcut';
-
-  info.appendChild(key);
-  info.appendChild(label);
-  
-  const actions = document.createElement('div');
-  actions.className = 'action-btns';
-  
-  const editBtn = document.createElement('button');
-  editBtn.className = 'btn-sm edit-btn';
-  editBtn.textContent = 'Edit';
-  editBtn.onclick = () => openModal(domain, item);
-
-  const deleteBtn = document.createElement('button');
-  deleteBtn.className = 'btn-sm delete-btn';
-  deleteBtn.textContent = 'Delete';
-  deleteBtn.onclick = () => deleteShortcut(domain, item.id);
-
-  actions.appendChild(editBtn);
-  actions.appendChild(deleteBtn);
-  main.appendChild(info);
-  main.appendChild(actions);
-  container.appendChild(main);
-
-  return container;
-}
+searchInput.addEventListener('input', renderTable);
 
 function openModal(domain: string, item: any) {
   currentEditItem = item;
@@ -223,44 +195,9 @@ window.onclick = (event) => {
 
 async function updateShortcut(domain: string, id: string, updates: any) {
   const data = await chrome.storage.local.get('shortcuts');
-  const shortcuts = data.shortcuts || {};
+  const shortcuts: Record<string, any> = data.shortcuts || {};
   if (shortcuts[domain]) {
     shortcuts[domain] = shortcuts[domain].map((s: any) => s.id === id ? { ...s, ...updates } : s);
-    await chrome.storage.local.set({ shortcuts });
-    loadDashboard();
-  }
-}
-
-function enterPathEditMode(header: HTMLElement, domain: string, oldPath: string) {
-  header.innerHTML = '';
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'edit-path-input';
-  input.value = oldPath;
-  const btnGroup = document.createElement('div');
-  btnGroup.className = 'action-btns';
-  const saveBtn = document.createElement('button');
-  saveBtn.className = 'btn-sm save-btn';
-  saveBtn.textContent = 'Save';
-  saveBtn.onclick = () => updatePathPattern(domain, oldPath, input.value);
-  const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'btn-sm';
-  cancelBtn.style.background = '#333';
-  cancelBtn.style.color = '#fff';
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.onclick = () => loadDashboard();
-  btnGroup.appendChild(saveBtn);
-  btnGroup.appendChild(cancelBtn);
-  header.appendChild(input);
-  header.appendChild(btnGroup);
-  input.focus();
-}
-
-async function updatePathPattern(domain: string, oldPath: string, newPath: string) {
-  const data = await chrome.storage.local.get('shortcuts');
-  const shortcuts = data.shortcuts || {};
-  if (shortcuts[domain]) {
-    shortcuts[domain] = shortcuts[domain].map((s: any) => s.scope === 'path' && s.path === oldPath ? { ...s, path: newPath } : s);
     await chrome.storage.local.set({ shortcuts });
     loadDashboard();
   }
@@ -278,7 +215,7 @@ function formatShortcut(sc: any) {
 
 async function deleteShortcut(domain: string, id: string) {
   const data = await chrome.storage.local.get('shortcuts');
-  const shortcuts = data.shortcuts || {};
+  const shortcuts: Record<string, any> = data.shortcuts || {};
   if (shortcuts[domain]) {
     shortcuts[domain] = shortcuts[domain].filter((s: any) => s.id !== id);
     if (shortcuts[domain].length === 0) delete shortcuts[domain];
@@ -286,6 +223,39 @@ async function deleteShortcut(domain: string, id: string) {
     loadDashboard();
   }
 }
+
+document.getElementById('export-btn')?.addEventListener('click', async () => {
+  const data = await chrome.storage.local.get('shortcuts');
+  const blob = new Blob([JSON.stringify(data.shortcuts || {}, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'highkey-shortcuts.json';
+  a.click();
+});
+
+document.getElementById('import-btn')?.addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async (e: any) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async (re: any) => {
+        try {
+          const imported = JSON.parse(re.target.result);
+          await chrome.storage.local.set({ shortcuts: imported });
+          loadDashboard();
+        } catch (err) {
+          alert('Failed to import shortcuts. Invalid JSON.');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+  input.click();
+});
 
 loadDashboard();
 chrome.storage.onChanged.addListener((changes) => {

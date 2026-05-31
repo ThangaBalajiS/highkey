@@ -18,12 +18,16 @@ export class VisualSelector {
 		this.prompt.id = "prompt";
 		this.prompt.innerHTML = `
       <div class="prompt-content">
-        <p>Target selected!</p>
+        <div class="prompt-header">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3z"></path><path d="M6 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3z"></path></svg>
+          Target selected!
+        </div>
         <p class="instruction">Press the key you want to bind...</p>
         <div class="selector-display"></div>
         <div class="scope-options">
-          <label>
+          <label class="checkbox-container">
             <input type="checkbox" id="scope-toggle" checked>
+            <span class="checkmark"></span>
             Apply to entire site
           </label>
         </div>
@@ -46,81 +50,162 @@ export class VisualSelector {
 	setupStyles() {
 		const style = document.createElement("style");
 		style.textContent = `
+      :host {
+        --bg: oklch(100% 0 0);
+        --surface: oklch(98% 0 0);
+        --fg: oklch(20% 0 0);
+        --muted: oklch(50% 0 0);
+        --border: oklch(90% 0 0);
+        --accent: oklch(60% 0.15 250);
+        --radius-md: 12px;
+        --radius-sm: 6px;
+        --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      }
+
       #highlighter {
         position: fixed;
         pointer-events: none;
-        background: rgba(0, 120, 215, 0.2);
-        border: 2px solid rgb(0, 120, 215);
+        background: oklch(60% 0.15 250 / 0.1);
+        border: 2px solid var(--accent);
         border-radius: 4px;
         z-index: 2147483647;
-        transition: all 0.1s ease-out;
+        transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
         display: none;
       }
 
       #prompt {
         position: fixed;
-        top: 20px;
+        top: 32px;
         left: 50%;
         transform: translateX(-50%);
-        background: #1e1e1e;
-        color: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        background: var(--bg);
+        color: var(--fg);
+        padding: 24px;
+        border-radius: var(--radius-md);
+        box-shadow: 0 20px 50px oklch(0% 0 0 / 0.15);
         z-index: 2147483647;
         display: none;
         font-family: system-ui, -apple-system, sans-serif;
         text-align: center;
-        min-width: 280px;
-        border: 1px solid #333;
+        width: 320px;
+        border: 1px solid var(--border);
+        box-sizing: border-box;
       }
 
-      .prompt-content p { margin: 0 0 10px 0; }
-      .instruction { font-size: 0.9em; color: #aaa; }
+      .prompt-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 16px;
+        color: var(--fg);
+        margin-bottom: 8px;
+      }
+      
+      .prompt-header svg {
+        color: var(--accent);
+      }
+
+      .instruction { 
+        font-size: 13px; 
+        color: var(--muted); 
+        margin: 0 0 20px 0;
+      }
+
       .selector-display { 
-        font-family: monospace; 
-        font-size: 0.8em; 
-        background: #000; 
-        padding: 8px; 
-        border-radius: 6px; 
-        margin-bottom: 15px;
+        font-family: var(--font-mono); 
+        font-size: 11px; 
+        background: var(--surface); 
+        padding: 10px; 
+        border-radius: var(--radius-sm); 
+        margin-bottom: 20px;
         word-break: break-all;
-        color: #00d778;
-        border: 1px solid #222;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        text-align: left;
       }
 
       .scope-options {
-        margin-bottom: 15px;
-        font-size: 0.9em;
-        color: #ccc;
+        margin-bottom: 24px;
         display: flex;
         justify-content: center;
-        align-items: center;
       }
 
-      .scope-options label {
+      .checkbox-container {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
         cursor: pointer;
+        font-size: 13px;
+        color: var(--fg);
+        font-weight: 500;
+        user-select: none;
+      }
+
+      .checkbox-container input {
+        display: none;
+      }
+
+      .checkmark {
+        width: 18px;
+        height: 18px;
+        background-color: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+
+      .checkbox-container:hover .checkmark {
+        border-color: var(--accent);
+      }
+
+      .checkbox-container input:checked + .checkmark {
+        background-color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .checkmark:after {
+        content: "";
+        display: none;
+        width: 5px;
+        height: 9px;
+        border: solid white;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+        margin-bottom: 2px;
+      }
+
+      .checkbox-container input:checked + .checkmark:after {
+        display: block;
       }
 
       .button-group {
         display: flex;
         justify-content: center;
-        gap: 10px;
       }
       
       button {
-        background: #333;
-        color: white;
-        border: 1px solid #444;
-        padding: 8px 16px;
-        border-radius: 6px;
+        background: none;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        padding: 10px 20px;
+        border-radius: var(--radius-sm);
         cursor: pointer;
-        font-size: 0.9em;
+        font-size: 13px;
+        font-weight: 600;
+        transition: all 0.2s;
+        width: 100%;
       }
-      button:hover { background: #444; }
+      
+      button:hover { 
+        background: var(--surface);
+        color: var(--fg);
+        border-color: var(--muted);
+      }
     `;
 		this.shadow.appendChild(style);
 	}
@@ -202,7 +287,8 @@ export class VisualSelector {
 		let shortcut = null;
 		if (this.remappingId) {
 			const data = await chrome.storage.local.get("shortcuts");
-			const domainShortcuts = data.shortcuts[window.location.hostname] || [];
+			const shortcuts = data.shortcuts || {};
+			const domainShortcuts = shortcuts[window.location.hostname] || [];
 			const original = domainShortcuts.find((s) => s.id === this.remappingId);
 			shortcut = original?.shortcut;
 		}

@@ -9,7 +9,7 @@ const engine = new ShortcutEngine();
 // Start the execution engine immediately
 engine.start();
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
   if (request.action === 'toggle-binder') {
     console.log('Toggling Binder UI...');
     selector.activate();
