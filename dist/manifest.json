@@ -25,11 +25,11 @@
   },
   "content_scripts": [
     {
+      "js": [
+        "assets/index.ts-CUghiwl6.js"
+      ],
       "matches": [
         "<all_urls>"
-      ],
-      "js": [
-        "src/content/index.ts-loader.js"
       ]
     }
   ],
@@ -48,8 +48,7 @@
         "<all_urls>"
       ],
       "resources": [
-        "**/*",
-        "*"
+        "assets/index.ts-CUghiwl6.js"
       ],
       "use_dynamic_url": false
     }

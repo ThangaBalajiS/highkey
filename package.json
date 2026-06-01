@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "zip": "npm run build && cd dist && zip -r ../highkey-v${npm_package_version}.zip . && cd ..",
     "preview": "vite preview"
   },
   "keywords": [],
