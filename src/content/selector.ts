@@ -261,14 +261,29 @@ export class VisualSelector {
     }
   }
 
-  private handleClick(e: MouseEvent) {
+  private async handleClick(e: MouseEvent) {
     if (this.isCapturing) return;
     e.preventDefault();
     e.stopPropagation();
 
     const target = e.target as HTMLElement;
     if (target) {
+      this.lastElement = target;
       this.currentSelector = this.generateResilientSelector(target);
+      
+      if (this.remappingId) {
+        const data = await chrome.storage.local.get('shortcuts');
+        const shortcuts: any = data.shortcuts || {};
+        const domainShortcuts = shortcuts[window.location.hostname] || [];
+        const original = domainShortcuts.find((s: any) => s.id === this.remappingId);
+        
+        if (original) {
+          await this.saveShortcut(original.shortcut, this.currentSelector, original.scope || 'domain');
+          this.deactivate();
+          return;
+        }
+      }
+      
       this.startCapturing();
     }
   }

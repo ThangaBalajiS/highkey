@@ -248,13 +248,25 @@ export class VisualSelector {
 			this.highlighter.style.display = "block";
 		}
 	}
-	handleClick(e) {
+	async handleClick(e) {
 		if (this.isCapturing) return;
 		e.preventDefault();
 		e.stopPropagation();
 		const target = e.target;
 		if (target) {
+			this.lastElement = target;
 			this.currentSelector = this.generateResilientSelector(target);
+			if (this.remappingId) {
+				const data = await chrome.storage.local.get("shortcuts");
+				const shortcuts = data.shortcuts || {};
+				const domainShortcuts = shortcuts[window.location.hostname] || [];
+				const original = domainShortcuts.find((s) => s.id === this.remappingId);
+				if (original) {
+					await this.saveShortcut(original.shortcut, this.currentSelector, original.scope || "domain");
+					this.deactivate();
+					return;
+				}
+			}
 			this.startCapturing();
 		}
 	}

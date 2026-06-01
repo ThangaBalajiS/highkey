@@ -50,22 +50,40 @@ async function loadCurrentShortcuts() {
         info.appendChild(keys);
 
         const actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '8px';
+        actions.className = 'shortcut-actions';
+
+        const renameBtn = document.createElement('button');
+        renameBtn.className = 'action-btn';
+        renameBtn.textContent = 'Rename';
+        renameBtn.onclick = async () => {
+          const newName = prompt('New name for this shortcut:', s.label);
+          if (newName !== null && newName.trim() !== '') {
+            await updateShortcut(domain, s.id, { label: newName.trim() });
+            loadCurrentShortcuts();
+          }
+        };
+
+        const remapBtn = document.createElement('button');
+        remapBtn.className = 'action-btn';
+        remapBtn.textContent = 'Remap';
+        remapBtn.onclick = async () => {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab?.id) {
+            chrome.tabs.sendMessage(tab.id, { action: 'remap-shortcut', id: s.id });
+            window.close();
+          }
+        };
 
         const delBtn = document.createElement('button');
-        delBtn.className = 'mono';
-        delBtn.style.background = 'none';
-        delBtn.style.border = 'none';
-        delBtn.style.color = 'var(--danger)';
-        delBtn.style.fontSize = '10px';
-        delBtn.style.cursor = 'pointer';
-        delBtn.textContent = 'DEL';
+        delBtn.className = 'action-btn del';
+        delBtn.textContent = 'Del';
         delBtn.onclick = async () => {
           await deleteShortcut(domain, s.id);
           loadCurrentShortcuts();
         };
 
+        actions.appendChild(renameBtn);
+        actions.appendChild(remapBtn);
         actions.appendChild(delBtn);
         item.appendChild(info);
         item.appendChild(actions);
@@ -74,6 +92,17 @@ async function loadCurrentShortcuts() {
     } else {
       section.style.display = 'none';
     }
+  }
+}
+
+async function updateShortcut(domain: string, id: string, updates: Partial<any>) {
+  const data = await chrome.storage.local.get('shortcuts');
+  const shortcuts: Record<string, any> = data.shortcuts || {};
+  if (shortcuts[domain]) {
+    shortcuts[domain] = shortcuts[domain].map((s: any) => 
+      s.id === id ? { ...s, ...updates } : s
+    );
+    await chrome.storage.local.set({ shortcuts });
   }
 }
 
