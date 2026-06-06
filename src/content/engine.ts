@@ -121,41 +121,57 @@ export class ShortcutEngine {
     
     if (allMatching.length === 0) return null;
 
-    // 2. Exact match check: Does any candidate match both selector AND text perfectly?
+    // 2. If innerText is provided, filter by it
     if (innerText && innerText.trim()) {
       const targetText = innerText.trim().toLowerCase();
       
-      const bestMatch = allMatching.find(el => el.innerText?.trim().toLowerCase() === targetText);
-      if (bestMatch) return bestMatch;
+      // Filter for exact text match first
+      const exactMatches = allMatching.filter(el => el.innerText?.trim().toLowerCase() === targetText);
+      if (exactMatches.length > 0) {
+        return exactMatches.find(el => el.offsetWidth > 0 || el.offsetHeight > 0) || exactMatches[0];
+      }
       
-      const partialMatch = allMatching.find(el => el.innerText?.trim().toLowerCase().includes(targetText));
-      if (partialMatch) return partialMatch;
+      // Then partial text match
+      const partialMatches = allMatching.filter(el => el.innerText?.trim().toLowerCase().includes(targetText));
+      if (partialMatches.length > 0) {
+        return partialMatches.find(el => el.offsetWidth > 0 || el.offsetHeight > 0) || partialMatches[0];
+      }
       
-      // If we have text but NONE of the candidates match that text, 
-      // we DON'T just click the first one (that causes mis-clicks like hitting the logo).
-      console.warn(`Highkey: Found ${allMatching.length} elements for "${selector}", but none match the text "${targetText}".`);
+      console.warn(`Highkey: Found ${allMatching.length} elements for "${selector}", but none match text "${targetText}".`);
       return null;
     }
 
-    // 3. If no text filter, and it's truly unique, return it.
+    // 3. If no text filter, return the first visible match or just the first match
     if (allMatching.length === 1) return allMatching[0];
-
-    // 4. Fallback: Return the first visible one ONLY if we have no better options
-    return allMatching.find(el => el.offsetWidth > 0 || el.offsetHeight > 0) || null;
+    return allMatching.find(el => el.offsetWidth > 0 || el.offsetHeight > 0) || allMatching[0];
   }
 
-  private findAllDeep(selector: string, root: Document | ShadowRoot = document): HTMLElement[] {
-    let elements = Array.from(root.querySelectorAll(selector)) as HTMLElement[];
-    
-    // Recurse into all shadow roots
-    const all = root.querySelectorAll('*');
-    for (const el of Array.from(all)) {
-      if (el.shadowRoot) {
-        elements = [...elements, ...this.findAllDeep(selector, el.shadowRoot)];
+  private findAllDeep(selector: string): HTMLElement[] {
+    const results: HTMLElement[] = [];
+    const roots: (Document | ShadowRoot)[] = [document];
+    const visited = new Set<Node>();
+
+    while (roots.length > 0) {
+      const root = roots.shift()!;
+      if (visited.has(root)) continue;
+      visited.add(root);
+
+      try {
+        const matches = root.querySelectorAll(selector);
+        results.push(...Array.from(matches) as HTMLElement[]);
+        
+        const all = root.querySelectorAll('*');
+        for (const el of Array.from(all)) {
+          if (el.shadowRoot) {
+            roots.push(el.shadowRoot);
+          }
+        }
+      } catch (e) {
+        // Ignore invalid selectors
       }
     }
     
-    return elements;
+    return results;
   }
 
   private async simulateFullClick(el: HTMLElement) {

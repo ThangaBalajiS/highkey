@@ -92,6 +92,7 @@ export class VisualSelector {
         box-shadow: 0 20px 50px oklch(0% 0 0 / 0.15);
         z-index: 2147483647;
         display: none;
+        pointer-events: auto;
         font-family: system-ui, -apple-system, sans-serif;
         text-align: center;
         width: 320px;
@@ -218,23 +219,41 @@ export class VisualSelector {
   }
 
   public activate(remappingId: string | null = null) {
-    if (this.isActive) return;
+    if (this.isActive) {
+      console.log('Highkey: Selector already active');
+      return;
+    }
+    
     this.isActive = true;
     this.isCapturing = false;
     this.remappingId = remappingId;
     
-    document.documentElement.appendChild(this.root);
+    // Ensure root has basic styles to not interfere with the page
+    this.root.style.position = 'fixed';
+    this.root.style.top = '0';
+    this.root.style.left = '0';
+    this.root.style.width = '100%';
+    this.root.style.height = '100%';
+    this.root.style.pointerEvents = 'none';
+    this.root.style.zIndex = '2147483647';
+    this.root.style.display = 'block';
+
+    const target = document.body || document.documentElement;
+    target.appendChild(this.root);
+    
     document.addEventListener('mousemove', this.handleMouseMove, true);
     document.addEventListener('click', this.handleClick, true);
-    console.log('Highkey Selector Activated');
+    
+    console.log('Highkey: Selector Activated', { remappingId });
   }
 
   public deactivate() {
+    console.log('Highkey: Deactivating Selector');
     this.isActive = false;
     this.isCapturing = false;
     this.remappingId = null;
-    if (document.documentElement.contains(this.root)) {
-      document.documentElement.removeChild(this.root);
+    if (this.root.parentElement) {
+      this.root.parentElement.removeChild(this.root);
     }
     document.removeEventListener('mousemove', this.handleMouseMove, true);
     document.removeEventListener('click', this.handleClick, true);
@@ -246,30 +265,43 @@ export class VisualSelector {
   }
 
   private handleMouseMove(e: MouseEvent) {
-    if (this.isCapturing) return;
+    if (this.isCapturing || !this.isActive) return;
     const target = e.target as HTMLElement;
-    if (target === this.lastElement) return;
-    this.lastElement = target;
+    if (!target || target === this.lastElement) return;
+    
+    // Don't highlight our own UI
+    if (this.root.contains(target)) return;
 
-    if (target) {
-      const rect = target.getBoundingClientRect();
-      this.highlighter.style.width = `${rect.width}px`;
-      this.highlighter.style.height = `${rect.height}px`;
-      this.highlighter.style.top = `${rect.top}px`;
-      this.highlighter.style.left = `${rect.left}px`;
-      this.highlighter.style.display = 'block';
-    }
+    this.lastElement = target;
+    const rect = target.getBoundingClientRect();
+    
+    this.highlighter.style.width = `${rect.width}px`;
+    this.highlighter.style.height = `${rect.height}px`;
+    this.highlighter.style.top = `${rect.top}px`;
+    this.highlighter.style.left = `${rect.left}px`;
+    this.highlighter.style.display = 'block';
   }
 
   private async handleClick(e: MouseEvent) {
-    if (this.isCapturing) return;
+    if (this.isCapturing || !this.isActive) return;
+    
+    // Don't intercept clicks on our own UI (like the cancel button)
+    const path = e.composedPath();
+    if (path.includes(this.root)) return;
+
     e.preventDefault();
     e.stopPropagation();
 
     const target = e.target as HTMLElement;
     if (target) {
+      console.log('Highkey: Element selected', target);
       this.lastElement = target;
+      
+      // Optimization: Discover all shadow roots once before starting selector generation
+      this.refreshShadowRoots();
+      
       this.currentSelector = this.generateResilientSelector(target);
+      console.log('Highkey: Generated selector:', this.currentSelector);
       
       if (this.remappingId) {
         const data = await chrome.storage.local.get('shortcuts');
@@ -391,13 +423,19 @@ export class VisualSelector {
   private generateResilientSelector(el: HTMLElement): string {
     const tag = el.tagName.toLowerCase();
 
-    // 1. Stable Identity Attributes (gh, aria-label, etc.)
-    const identityAttrs = ['gh', 'aria-label', 'data-testid', 'name', 'placeholder', 'title'];
+    // 1. Stable Identity Attributes
+    const identityAttrs = ['gh', 'aria-label', 'data-testid', 'name', 'placeholder', 'title', 'alt'];
     for (const attr of identityAttrs) {
       const val = el.getAttribute(attr);
       if (val) {
         const attrSelector = `${tag}[${attr}="${CSS.escape(val)}"]`;
         if (this.isUnique(attrSelector, el)) return attrSelector;
+      }
+    }
+
+    if (tag === 'a') {
+      for (const hrefSelector of this.getStableHrefSelectors(el)) {
+        if (this.isUnique(hrefSelector, el)) return hrefSelector;
       }
     }
 
@@ -407,70 +445,208 @@ export class VisualSelector {
       if (this.isUnique(idSelector, el)) return idSelector;
     }
 
-    // 3. Semantic Role (Very stable in Gmail)
+    // 3. Unique Combination of Classes
+    const classes = Array.from(el.classList).filter(c => !this.isTailwindOrHashed(c));
+    if (classes.length > 0) {
+      // Try each class individually first
+      for (const c of classes) {
+        const classSelector = `${tag}.${CSS.escape(c)}`;
+        if (this.isUnique(classSelector, el)) return classSelector;
+      }
+      // Try combination
+      const combinedSelector = `${tag}.${classes.map(c => CSS.escape(c)).join('.')}`;
+      if (this.isUnique(combinedSelector, el)) return combinedSelector;
+    }
+
+    // 4. Semantic Role
     const role = el.getAttribute('role');
     if (role) {
       const roleSelector = `${tag}[role="${CSS.escape(role)}"]`;
       if (this.isUnique(roleSelector, el)) return roleSelector;
     }
 
-    // 4. Unique Combination of Classes
-    const classes = Array.from(el.classList).filter(c => !this.isTailwindOrHashed(c));
-    if (classes.length > 0) {
-      const classSelector = `${tag}.${classes.map(c => CSS.escape(c)).join('.')}`;
-      if (this.isUnique(classSelector, el)) return classSelector;
-    }
-
-    // 5. Ancestor Anchoring
+    // 5. Ancestor Anchoring (Enhanced)
     let parent = el.parentElement;
     let depth = 0;
-    while (parent && parent.tagName !== 'BODY' && depth < 3) {
-      for (const attr of ['gh', 'aria-label', 'data-testid', 'role']) {
-        const pVal = parent.getAttribute(attr);
-        if (pVal) {
-          const anchoredSelector = `[${attr}="${CSS.escape(pVal)}"] ${tag}`;
-          if (this.isUnique(anchoredSelector, el)) return anchoredSelector;
-        }
+    while (parent && parent.tagName !== 'BODY' && depth < 5) {
+      const parentSelector = this.getSimplifiedSelector(parent);
+      if (parentSelector && parentSelector !== parent.tagName.toLowerCase()) {
+        const anchoredSelector = `${parentSelector} ${tag}`;
+        if (this.isUnique(anchoredSelector, el)) return anchoredSelector;
+        
+        // Try direct child
+        const directSelector = `${parentSelector} > ${tag}`;
+        if (this.isUnique(directSelector, el)) return directSelector;
       }
       parent = parent.parentElement;
       depth++;
     }
 
-    // 6. Absolute Fallback: Return tag and rely on Text Filtering in the Engine
-    return tag;
+    // 6. Nth-of-type fallback
+    const nthSelector = this.getNthOfTypeSelector(el);
+    if (nthSelector && this.isUnique(nthSelector, el)) return nthSelector;
+
+    // 7. Structural fallback. Never return just "div", "a", etc. after the
+    // uniqueness checks above failed; those broad selectors cause mis-clicks.
+    return this.buildStructuralSelector(el);
+  }
+
+  private getSimplifiedSelector(el: HTMLElement): string | null {
+    if (el.id && !this.isAutoGenerated(el.id)) return `#${CSS.escape(el.id)}`;
+    
+    const tag = el.tagName.toLowerCase();
+    const importantAttrs = ['data-testid', 'aria-label', 'gh', 'role'];
+    for (const attr of importantAttrs) {
+      const val = el.getAttribute(attr);
+      if (val) return `${tag}[${attr}="${CSS.escape(val)}"]`;
+    }
+
+    const classes = Array.from(el.classList).filter(c => !this.isTailwindOrHashed(c));
+    if (classes.length > 0) return `${tag}.${CSS.escape(classes[0])}`;
+
+    return null;
+  }
+
+  private getStableHrefSelectors(el: HTMLElement): string[] {
+    const href = el.getAttribute('href');
+    if (!href) return [];
+
+    let url: URL;
+    try {
+      url = new URL(href, window.location.href);
+    } catch {
+      return [];
+    }
+
+    const segments = url.pathname.split('/').filter(Boolean);
+    const stableTail = [...segments].reverse().find(segment => !this.isDynamicPathSegment(segment));
+    if (!stableTail) return [];
+
+    const suffix = `/${stableTail}`;
+    const selectors = [
+      `a[href$="${CSS.escape(suffix)}"]`,
+      `a[href$="${CSS.escape(`${suffix}/`)}"]`
+    ];
+
+    if (url.search) {
+      selectors.push(`a[href*="${CSS.escape(`${suffix}?`)}"]`);
+    }
+
+    return selectors;
+  }
+
+  private isDynamicPathSegment(segment: string): boolean {
+    const decoded = decodeURIComponent(segment);
+    return (
+      /^[0-9]+$/.test(decoded) ||
+      /^[0-9a-f]{8,}$/i.test(decoded) ||
+      /^[0-9a-f-]{12,}$/i.test(decoded) ||
+      /[0-9]/.test(decoded) && decoded.length > 8 ||
+      decoded.includes(':')
+    );
+  }
+
+  private getNthOfTypeSelector(el: HTMLElement): string | null {
+    const tag = el.tagName.toLowerCase();
+    const parent = el.parentElement;
+    if (!parent) return null;
+
+    const siblings = Array.from(parent.children).filter(s => s.tagName === el.tagName);
+    if (siblings.length <= 1) return null;
+
+    const index = siblings.indexOf(el) + 1;
+    return `${tag}:nth-of-type(${index})`;
+  }
+
+  private buildStructuralSelector(el: HTMLElement): string {
+    const parts: string[] = [];
+    let current: HTMLElement | null = el;
+
+    while (current && current.tagName !== 'HTML') {
+      const segment = this.getStructuralSegment(current);
+      parts.unshift(segment);
+
+      const candidate = parts.join(' > ');
+      if (this.isUnique(candidate, el)) return candidate;
+
+      current = current.parentElement;
+    }
+
+    return parts.join(' > ');
+  }
+
+  private getStructuralSegment(el: HTMLElement): string {
+    const tag = el.tagName.toLowerCase();
+    const parent = el.parentElement;
+    if (!parent) return tag;
+
+    const sameTagSiblings = Array.from(parent.children).filter(
+      sibling => sibling.tagName === el.tagName
+    );
+
+    if (sameTagSiblings.length === 1) return tag;
+
+    return `${tag}:nth-of-type(${sameTagSiblings.indexOf(el) + 1})`;
   }
 
   private isTailwindOrHashed(c: string): boolean {
-    return /^(p|m|w|h|bg|text|flex|grid|border|rounded|opacity|z|top|left|right|bottom|items|justify)-/.test(c) || 
+    return /^(p|m|w|h|bg|text|flex|grid|border|rounded|opacity|z|top|left|right|bottom|items|justify|overflow|pointer|cursor|select|animate)-/.test(c) || 
            /[0-9]{4,}/.test(c);
+  }
+
+  private cachedShadowRoots: (Document | ShadowRoot)[] = [document];
+
+  private refreshShadowRoots() {
+    this.cachedShadowRoots = [document];
+    const queue: (Document | ShadowRoot)[] = [document];
+    const visited = new Set<Node>();
+
+    while (queue.length > 0) {
+      const root = queue.shift()!;
+      if (visited.has(root)) continue;
+      visited.add(root);
+
+      try {
+        const all = root.querySelectorAll('*');
+        for (const el of Array.from(all)) {
+          if (el.shadowRoot) {
+            this.cachedShadowRoots.push(el.shadowRoot);
+            queue.push(el.shadowRoot);
+          }
+        }
+      } catch (e) {
+        // Ignore restricted shadow roots
+      }
+    }
   }
 
   private isUnique(selector: string, targetEl?: HTMLElement): boolean {
     try {
       const matches = this.findAllDeep(selector);
       console.log(`[Highkey] Uniqueness check for "${selector}": found ${matches.length} matches.`);
-      
       if (matches.length === 1) {
-        if (targetEl && matches[0] !== targetEl) return false;
-        return true;
+        const isTarget = !targetEl || matches[0] === targetEl;
+        if (!isTarget) {
+          console.warn(`[Highkey] Selector "${selector}" matched one element, but not the clicked target.`);
+        }
+        return isTarget;
       }
       return false;
-    } catch (e) {
+    } catch {
       return false;
     }
   }
 
   private findAllDeep(selector: string): HTMLElement[] {
     const results: HTMLElement[] = [];
-    const search = (root: Document | ShadowRoot) => {
-      const matches = root.querySelectorAll(selector);
-      results.push(...Array.from(matches) as HTMLElement[]);
-      const all = root.querySelectorAll('*');
-      for (const el of Array.from(all)) {
-        if (el.shadowRoot) search(el.shadowRoot);
+    for (const root of this.cachedShadowRoots) {
+      try {
+        const matches = root.querySelectorAll(selector);
+        results.push(...Array.from(matches) as HTMLElement[]);
+      } catch (e) {
+        // Ignore invalid selectors
       }
-    };
-    search(document);
+    }
     return results;
   }
 

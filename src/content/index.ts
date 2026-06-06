@@ -10,12 +10,14 @@ const engine = new ShortcutEngine();
 engine.start();
 
 chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
+  console.log('Highkey: Received message:', request.action, request);
+  
   if (request.action === 'toggle-binder') {
-    console.log('Toggling Binder UI...');
+    console.log('Highkey: Toggling Binder UI...');
     selector.activate();
   }
   if (request.action === 'remap-shortcut') {
-    console.log('Remapping shortcut:', request.id);
+    console.log('Highkey: Remapping shortcut:', request.id);
     selector.activate(request.id);
   }
 });

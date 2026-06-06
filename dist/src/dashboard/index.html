@@ -40,6 +40,59 @@
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: oklch(99.5% 0.001 250); }
 
+        .domain-header-row td {
+            padding: 0;
+            background: oklch(99% 0.001 250);
+        }
+        .domain-toggle {
+            width: 100%;
+            padding: 14px 20px;
+            border: 0;
+            background: transparent;
+            color: var(--fg);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font: inherit;
+            text-align: left;
+        }
+        .domain-toggle:hover {
+            background: oklch(98% 0.002 250);
+        }
+        .domain-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .domain-chevron {
+            color: var(--muted);
+            transition: transform 0.2s;
+            flex: 0 0 auto;
+        }
+        .domain-header-row.open .domain-chevron {
+            transform: rotate(90deg);
+        }
+        .domain-name {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .domain-count {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .domain-shortcut-row[hidden] {
+            display: none;
+        }
+
         .selector-code { font-family: var(--font-mono); font-size: 11px; background: var(--bg); color: var(--muted); padding: 4px 6px; border-radius: 4px; border: 1px solid var(--border); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
         .shortcut-badge { font-family: var(--font-mono); font-weight: 600; background: var(--fg); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
 
@@ -144,7 +197,7 @@
             font-size: 14px;
         }
     </style>
-  <script type="module" crossorigin src="/assets/index.html-BpZUh2-G.js"></script>
+  <script type="module" crossorigin src="/assets/index.html-CvdVPr5M.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/shared-c03kktcc.js">
   <link rel="stylesheet" crossorigin href="/assets/shared-D-ql5C5R.css">
 </head>

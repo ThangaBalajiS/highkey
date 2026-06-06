@@ -11,8 +11,7 @@
   },
   "permissions": [
     "storage",
-    "activeTab",
-    "scripting"
+    "activeTab"
   ],
   "action": {
     "default_popup": "src/popup/index.html",
@@ -26,7 +25,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.ts-CUghiwl6.js"
+        "assets/index.ts-BsUfNCOf.js"
       ],
       "matches": [
         "<all_urls>"
@@ -48,7 +47,7 @@
         "<all_urls>"
       ],
       "resources": [
-        "assets/index.ts-CUghiwl6.js"
+        "assets/index.ts-BsUfNCOf.js"
       ],
       "use_dynamic_url": false
     }

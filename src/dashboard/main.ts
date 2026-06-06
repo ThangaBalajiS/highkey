@@ -14,6 +14,7 @@ let currentEditItem: any = null;
 let currentEditDomain: string = '';
 let capturedShortcut: any = null;
 let allShortcuts: { domain: string, shortcut: any }[] = [];
+let openDomain: string | null = null;
 
 async function loadDashboard() {
   const data = await chrome.storage.local.get('shortcuts');
@@ -57,24 +58,57 @@ function renderTable() {
     grouped[item.domain].push(item);
   });
 
-  for (const [domain, items] of Object.entries(grouped)) {
-    // Add Domain Header Row
+  const domains = Object.keys(grouped).sort();
+  if (!openDomain || !grouped[openDomain]) {
+    openDomain = domains[0] || null;
+  }
+
+  for (const domain of domains) {
+    const items = grouped[domain];
+    const isOpen = domain === openDomain;
+
     const headerRow = document.createElement('tr');
+    headerRow.className = `domain-header-row ${isOpen ? 'open' : ''}`;
+
     const headerTd = document.createElement('td');
     headerTd.colSpan = 4;
-    headerTd.style.background = 'oklch(99% 0.001 250)';
-    headerTd.style.fontWeight = '600';
-    headerTd.style.color = 'var(--fg)';
-    headerTd.style.fontSize = '12px';
-    headerTd.style.textTransform = 'uppercase';
-    headerTd.style.letterSpacing = '0.05em';
-    headerTd.textContent = domain;
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'domain-toggle';
+    toggle.setAttribute('aria-expanded', `${isOpen}`);
+    toggle.onclick = () => {
+      openDomain = domain;
+      renderTable();
+    };
+
+    const title = document.createElement('span');
+    title.className = 'domain-title';
+
+    const chevron = document.createElement('span');
+    chevron.className = 'domain-chevron';
+    chevron.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg>';
+
+    const name = document.createElement('span');
+    name.className = 'domain-name';
+    name.textContent = domain;
+
+    const count = document.createElement('span');
+    count.className = 'domain-count';
+    count.textContent = `${items.length} shortcut${items.length === 1 ? '' : 's'}`;
+
+    title.appendChild(chevron);
+    title.appendChild(name);
+    toggle.appendChild(title);
+    toggle.appendChild(count);
+    headerTd.appendChild(toggle);
     headerRow.appendChild(headerTd);
     tableBody.appendChild(headerRow);
 
-    // Add Shortcut Rows
     items.sort((a, b) => b.shortcut.createdAt - a.shortcut.createdAt).forEach(item => {
       const row = document.createElement('tr');
+      row.className = 'domain-shortcut-row';
+      row.hidden = !isOpen;
       
       const nameTd = document.createElement('td');
       nameTd.style.fontWeight = '500';
