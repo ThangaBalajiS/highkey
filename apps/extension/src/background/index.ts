@@ -22,8 +22,8 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         }
         throw new Error('Network response was not ok');
       })
-      .then((shortcuts) => {
-        sendResponse({ count: shortcuts.length });
+      .then((data) => {
+        sendResponse({ count: data.total || 0 });
       })
       .catch((error) => {
         console.warn('Highkey background: Error fetching shortcuts', error);

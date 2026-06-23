@@ -1,6 +1,14 @@
 import { getAuthToken, getUserProfile, clearAuthToken } from '../shared/auth';
 import { User } from '@highkey/types';
 
+async function getExtensionId(): Promise<string> {
+  const data = await chrome.storage.local.get('extensionId');
+  if (data.extensionId) return data.extensionId as string;
+  const newId = crypto.randomUUID();
+  await chrome.storage.local.set({ extensionId: newId });
+  return newId;
+}
+
 const tableBody = document.getElementById('shortcut-table-body');
 const statsEl = document.getElementById('shortcut-stats');
 const searchInput = document.getElementById('search-input') as HTMLInputElement;
@@ -24,6 +32,12 @@ const viewCommunity = document.getElementById('view-community') as HTMLElement;
 const communityList = document.getElementById('community-list') as HTMLElement;
 const communityEmpty = document.getElementById('community-empty') as HTMLElement;
 const communitySearch = document.getElementById('community-search') as HTMLInputElement;
+
+const navDiscover = document.getElementById('nav-discover') as HTMLElement;
+const viewDiscover = document.getElementById('view-discover') as HTMLElement;
+const discoverList = document.getElementById('discover-list') as HTMLElement;
+const discoverEmpty = document.getElementById('discover-empty') as HTMLElement;
+const discoverSearch = document.getElementById('discover-search') as HTMLInputElement;
 
 // Submit Modal Elements
 const submitModal = document.getElementById('submit-modal') as HTMLElement;
@@ -219,10 +233,15 @@ async function loadCommunity() {
   const domain = openDomain || '';
   if (!domain) return;
   
+  if (communityList) {
+    communityList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--muted);">Loading packs...</div>';
+  }
+  
   try {
     const response = await fetch(`${BACKEND_URL}/api/shortcuts?domain=${domain}`);
     if (response.ok) {
-      communityPacks = await response.json();
+      const data = await response.json();
+      communityPacks = data.packs || [];
       renderCommunity();
     }
   } catch (error) {
@@ -232,9 +251,10 @@ async function loadCommunity() {
 
 function renderCommunity() {
   if (!communityList || !communityEmpty) return;
-  
-  const query = communitySearch.value.toLowerCase();
-  const filtered = communityPacks.filter(pack => 
+
+  getExtensionId().then(extensionId => {
+    const query = communitySearch.value.toLowerCase();
+    const filtered = communityPacks.filter(pack => 
     (pack.author?.name || 'Highkey User').toLowerCase().includes(query) ||
     pack.shortcuts.some((s: any) => 
       s.label.toLowerCase().includes(query) || 
@@ -293,27 +313,82 @@ function renderCommunity() {
       </div>
 
       <div style="display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end;">
-        <button class="btn-ghost upvote-btn" style="padding: 6px 12px; font-size: 12px;">Upvote Pack</button>
+        ${
+          currentUser && pack.authorId === currentUser.id
+            ? `<button class="btn-danger unpublish-btn" style="padding: 6px 12px; font-size: 12px; background: transparent; color: var(--danger); border: 1px solid var(--danger);">Unpublish</button>`
+            : ''
+        }
+        ${
+          pack.reportedBy?.includes(extensionId)
+            ? `<button class="btn-ghost report-btn active" disabled style="padding: 6px 12px; font-size: 12px;" title="Already Reported">Reported</button>`
+            : `<button class="btn-ghost report-btn" style="padding: 6px 12px; font-size: 12px; color: var(--muted);">Report</button>`
+        }
+        ${
+          pack.upvotedBy?.includes(extensionId)
+            ? `<button class="btn-ghost upvote-btn active" disabled style="padding: 6px 12px; font-size: 12px;" title="Already Upvoted">Upvoted</button>`
+            : `<button class="btn-ghost upvote-btn" style="padding: 6px 12px; font-size: 12px;">Upvote Pack</button>`
+        }
         <button class="btn-primary download-btn" style="padding: 6px 16px; font-size: 12px;">Download Pack</button>
       </div>
     `;
     
     card.querySelector('.upvote-btn')?.addEventListener('click', async () => {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/upvote`, { method: 'POST' });
+        const response = await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/upvote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ extensionId })
+        });
         if (response.ok) {
           const updated = await response.json();
           pack.upvotes = updated.upvotes;
-          loadCommunity();
+          if (!pack.upvotedBy) pack.upvotedBy = [];
+          pack.upvotedBy.push(extensionId);
+          renderCommunity();
         }
       } catch (e) {
         console.error(e);
       }
     });
 
+    card.querySelector('.report-btn')?.addEventListener('click', async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/report`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ extensionId })
+        });
+        if (response.ok) {
+          if (!pack.reportedBy) pack.reportedBy = [];
+          pack.reportedBy.push(extensionId);
+          alert('Pack reported. Our team will review it.');
+          renderCommunity();
+        }
+      } catch (e) {}
+    });
+
+    card.querySelector('.unpublish-btn')?.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to unpublish this pack? This action cannot be undone.')) return;
+      if (!currentToken) return;
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/shortcuts?domain=${pack.domain}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (response.ok) {
+          alert('Pack successfully unpublished.');
+          loadCommunity();
+        } else {
+          const err = await response.json();
+          alert(`Failed to unpublish: ${err.error}`);
+        }
+      } catch (e) {}
+    });
+
     card.querySelector('.download-btn')?.addEventListener('click', () => downloadPackage(pack));
     
     communityList.appendChild(card);
+  });
   });
 }
 
@@ -340,7 +415,12 @@ async function downloadPackage(pack: any) {
   if (addedCount > 0) {
     await chrome.storage.sync.set({ shortcuts });
     try {
-      await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/download`, { method: 'POST' });
+      const extensionId = await getExtensionId();
+      await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ extensionId })
+      });
     } catch (err) {
       console.warn(err);
     }
@@ -357,9 +437,150 @@ navShortcuts.onclick = (e) => {
   e.preventDefault();
   navShortcuts.classList.add('active');
   navCommunity.classList.remove('active');
+  navDiscover.classList.remove('active');
   viewShortcuts.style.display = 'block';
   viewCommunity.style.display = 'none';
+  viewDiscover.style.display = 'none';
 };
+
+navCommunity.onclick = (e) => {
+  e.preventDefault();
+  navCommunity.classList.add('active');
+  navShortcuts.classList.remove('active');
+  navDiscover.classList.remove('active');
+  viewCommunity.style.display = 'block';
+  viewShortcuts.style.display = 'none';
+  viewDiscover.style.display = 'none';
+  loadCommunity();
+};
+
+navDiscover.onclick = (e) => {
+  e.preventDefault();
+  navDiscover.classList.add('active');
+  navShortcuts.classList.remove('active');
+  navCommunity.classList.remove('active');
+  viewDiscover.style.display = 'block';
+  viewShortcuts.style.display = 'none';
+  viewCommunity.style.display = 'none';
+  loadDiscover();
+};
+
+let discoverPacks: any[] = [];
+
+async function loadDiscover() {
+  if (discoverList) {
+    discoverList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--muted); grid-column: 1 / -1;">Loading popular packs...</div>';
+  }
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/shortcuts`); // No domain filter
+    if (response.ok) {
+      const data = await response.json();
+      discoverPacks = data.packs || [];
+      renderDiscover();
+    }
+  } catch (error) {
+    console.error('Fetch discover error:', error);
+  }
+}
+
+function renderDiscover() {
+  if (!discoverList || !discoverEmpty) return;
+
+  getExtensionId().then(extensionId => {
+    const query = discoverSearch.value.toLowerCase();
+    const filtered = discoverPacks.filter(pack => 
+      (pack.name || '').toLowerCase().includes(query) ||
+      (pack.domain || '').toLowerCase().includes(query) ||
+      (pack.author?.name || 'Highkey User').toLowerCase().includes(query)
+    );
+
+    discoverList.innerHTML = '';
+    if (filtered.length === 0) {
+      discoverEmpty.style.display = 'block';
+      return;
+    }
+
+    discoverEmpty.style.display = 'none';
+
+    filtered.forEach(pack => {
+      const card = document.createElement('div');
+      card.style.cssText = `
+        background: var(--surface);
+        border: 1px solid var(--border);
+        padding: 20px;
+        border-radius: var(--radius-md);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      `;
+      
+      const avatarUrl = pack.author?.picture || 'https://www.gstatic.com/images/branding/product/1x/avatar_circle_blue_512dp.png';
+      const authorName = pack.author?.name || 'Highkey User';
+
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="${avatarUrl}" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);" title="${authorName}" class="author-avatar-img">
+            <div>
+              <div style="font-weight: 600; font-size: 14px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${pack.name || `${authorName}'s Pack`}">${pack.name || `${authorName}'s Pack`}</div>
+              <div style="font-size: 11px; color: var(--muted);">By ${authorName}</div>
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--muted); display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+            <span style="background: var(--bg); padding: 2px 6px; border-radius: 4px; font-weight: 500; color: var(--fg); border: 1px solid var(--border); margin-bottom: 2px;">${pack.domain}</span>
+            <span>↑ ${pack.upvotes || 0} upvotes</span>
+            <span>↓ ${pack.downloads || 0} downloads</span>
+          </div>
+        </div>
+        
+        <div style="flex: 1;">
+          <div style="font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em;">${pack.shortcuts.length} Shortcuts</div>
+          ${pack.shortcuts.slice(0, 3).map((s: any) => `
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--border); margin-bottom: 4px;">
+              <span style="font-weight: 500; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${s.label}">${s.label}</span>
+              <span class="shortcut-badge">${formatShortcut(s.shortcut)}</span>
+            </div>
+          `).join('')}
+          ${pack.shortcuts.length > 3 ? `<div style="font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px;">+ ${pack.shortcuts.length - 3} more</div>` : ''}
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 4px;">
+          <button class="upvote-btn btn-ghost" style="flex: 1; display: flex; justify-content: center; gap: 4px; align-items: center;" ${pack.upvotedBy?.includes(extensionId) ? 'disabled' : ''}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="${pack.upvotedBy?.includes(extensionId) ? 'fill: currentColor;' : ''}"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            ${pack.upvotedBy?.includes(extensionId) ? 'Upvoted' : 'Upvote'}
+          </button>
+          <button class="download-btn btn-primary" style="flex: 1; display: flex; justify-content: center; gap: 4px; align-items: center;" ${pack.downloadedBy?.includes(extensionId) ? 'disabled' : ''}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Install
+          </button>
+        </div>
+      `;
+
+      card.querySelector('.upvote-btn')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget as HTMLButtonElement;
+        btn.disabled = true;
+        try {
+          await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/upvote`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ extensionId })
+          });
+          btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="fill: currentColor;"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Upvoted';
+          loadDiscover(); // Refresh state
+        } catch (err) {
+          console.warn(err);
+          btn.disabled = false;
+        }
+      });
+
+      card.querySelector('.download-btn')?.addEventListener('click', () => downloadPackage(pack));
+      
+      discoverList.appendChild(card);
+    });
+  });
+}
+
+discoverSearch?.addEventListener('input', renderDiscover);
 
 navCommunity.onclick = (e) => {
   e.preventDefault();
@@ -611,6 +832,12 @@ function openSubmitModal(domain: string, shortcuts: any[]) {
     submitStepLogin.style.display = 'none';
     submitStepSignup.style.display = 'none';
     submitStepShare.style.display = 'block';
+    submitDomainDisplay.textContent = submitDomain;
+
+    const packNameInput = document.getElementById('submit-pack-name') as HTMLInputElement;
+    if (packNameInput) {
+      packNameInput.value = `${submitDomain} Shortcuts`;
+    }
     submitModalShareBtn.disabled = false;
 
     // Populate shortcuts list checkboxes
@@ -670,6 +897,9 @@ submitModalShareBtn.onclick = async () => {
     selectedShortcuts.push(submitShortcuts[index]);
   }
 
+  const packNameInput = document.getElementById('submit-pack-name') as HTMLInputElement;
+  const packName = packNameInput ? packNameInput.value.trim() : '';
+
   try {
     const response = await fetch(`${BACKEND_URL}/api/shortcuts`, {
       method: 'POST',
@@ -677,7 +907,7 @@ submitModalShareBtn.onclick = async () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${currentToken}`
       },
-      body: JSON.stringify({ domain: submitDomain, shortcuts: selectedShortcuts })
+      body: JSON.stringify({ domain: submitDomain, name: packName, shortcuts: selectedShortcuts })
     });
     
     submitModalShareBtn.disabled = false;
@@ -724,6 +954,10 @@ loadDashboard();
 const urlParams = new URLSearchParams(window.location.search);
 const submitDomainParam = urlParams.get('submit');
 if (submitDomainParam) {
+  // Remove the query parameter from the URL so it doesn't trigger again on reload
+  const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+  window.history.replaceState({ path: newUrl }, '', newUrl);
+
   chrome.storage.sync.get('shortcuts').then((data) => {
     const shortcuts = (data.shortcuts || {}) as Record<string, any>;
     const domainShortcuts = shortcuts[submitDomainParam] || [];

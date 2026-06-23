@@ -18,11 +18,16 @@ const ShortcutItemSchema = new mongoose.Schema({
 
 const CommunityPackSchema = new mongoose.Schema({
   domain: { type: String, required: true, index: true },
+  name: { type: String, required: true },
   authorId: { type: String, required: true, index: true }, // Google User ID
   authorEmail: { type: String, index: true },
   shortcuts: [ShortcutItemSchema],
   upvotes: { type: Number, default: 0 },
+  upvotedBy: { type: [String], default: [] },
   downloads: { type: Number, default: 0 },
+  downloadedBy: { type: [String], default: [] },
+  reports: { type: Number, default: 0 },
+  reportedBy: { type: [String], default: [] },
   createdAt: { type: Number, required: true },
 }, { timestamps: true });
 

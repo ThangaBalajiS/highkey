@@ -38,7 +38,9 @@ export interface CommunityPack {
   authorEmail?: string;
   shortcuts: Shortcut[];
   upvotes: number;
+  upvotedBy?: string[];
   downloads: number;
+  downloadedBy?: string[];
   createdAt: number;
   author?: {
     name: string;

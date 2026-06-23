@@ -8,24 +8,30 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const body = await request.json().catch(() => ({}));
+    const { extensionId } = body;
+
     await dbConnect();
     
     // Attempt to update by pack _id, or fallback to finding by nested shortcut.id
     let pack = await CommunityPack.findById(id);
-    if (pack) {
-      pack.downloads += 1;
-      await pack.save();
-    } else {
-      pack = await CommunityPack.findOneAndUpdate(
-        { "shortcuts.id": id },
-        { $inc: { downloads: 1 } },
-        { new: true }
-      );
+    if (!pack) {
+      pack = await CommunityPack.findOne({ "shortcuts.id": id });
     }
     
     if (!pack) {
       return NextResponse.json({ error: 'Pack or shortcut not found' }, { status: 404 });
     }
+
+    if (extensionId) {
+      if (!pack.downloadedBy) pack.downloadedBy = [];
+      if (!pack.downloadedBy.includes(extensionId)) {
+        pack.downloadedBy.push(extensionId);
+      }
+    }
+
+    pack.downloads = (pack.downloads || 0) + 1;
+    await pack.save();
     
     return NextResponse.json(pack);
   } catch (error) {

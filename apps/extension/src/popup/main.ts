@@ -1,5 +1,13 @@
 export {};
 
+async function getExtensionId(): Promise<string> {
+  const data = await chrome.storage.local.get('extensionId');
+  if (data.extensionId) return data.extensionId as string;
+  const newId = crypto.randomUUID();
+  await chrome.storage.local.set({ extensionId: newId });
+  return newId;
+}
+
 const BACKEND_URL = 'http://localhost:4000';
 
 document.getElementById('start-binding')?.addEventListener('click', async () => {
@@ -221,6 +229,12 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
 
   if (!commSection || !commList || !commCount) return;
 
+  const extensionId = await getExtensionId();
+
+  if (commList) {
+    commList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--muted);">Loading community packs...</div>';
+  }
+
   try {
     const response = await fetch(`${BACKEND_URL}/api/shortcuts?domain=${domain}`);
     if (!response.ok) {
@@ -230,12 +244,14 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
       return;
     }
 
-    const packages: any[] = await response.json();
+    const data = await response.json();
+    const packages: any[] = data.packs || [];
+    const totalCount = data.total || 0;
 
     const badgeEl = document.getElementById('library-badge');
     if (badgeEl) {
-      if (packages.length > 0) {
-        badgeEl.textContent = `${packages.length}`;
+      if (totalCount > 0) {
+        badgeEl.textContent = `${totalCount}`;
         badgeEl.style.display = 'inline-block';
       } else {
         badgeEl.style.display = 'none';
@@ -250,7 +266,7 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
     }
 
     if (commEmptyState) commEmptyState.style.display = 'none';
-    commCount.textContent = `${packages.length}`;
+    commCount.textContent = `${totalCount}`;
     commList.innerHTML = '';
 
     packages.forEach((pack) => {
@@ -260,99 +276,44 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
       const avatarUrl = pack.author?.picture || 'https://www.gstatic.com/images/branding/product/1x/avatar_circle_blue_512dp.png';
       const authorName = pack.author?.name || 'Highkey User';
 
-      // Left part: profile image + name + meta
+      // --- Header Row ---
+      const header = document.createElement('div');
+      header.className = 'pack-item-header';
+
       const authorInfo = document.createElement('div');
       authorInfo.className = 'pack-author-info';
 
       const avatar = document.createElement('img');
       avatar.className = 'pack-avatar';
       avatar.src = avatarUrl;
-      avatar.title = authorName; // Hover to show name
+      avatar.title = authorName; 
 
       const details = document.createElement('div');
       details.className = 'pack-details';
 
       const title = document.createElement('div');
       title.className = 'pack-title';
-      title.textContent = `${authorName}'s Pack`;
-      title.title = `${authorName}'s Pack`;
+      title.textContent = pack.name || `${authorName}'s Pack`;
+      title.title = pack.name || `${authorName}'s Pack`;
 
       const meta = document.createElement('div');
       meta.className = 'pack-meta';
-      meta.textContent = `${pack.shortcuts.length} shortcut${pack.shortcuts.length === 1 ? '' : 's'}`;
+      meta.textContent = `By ${authorName} • ${pack.shortcuts.length} shortcut${pack.shortcuts.length === 1 ? '' : 's'} • ${pack.downloads || 0} downloads`;
 
       details.appendChild(title);
       details.appendChild(meta);
-
       authorInfo.appendChild(avatar);
       authorInfo.appendChild(details);
 
-      // Right part: actions (Upvote button, downloads count, download button, preview button)
-      const actions = document.createElement('div');
-      actions.className = 'pack-actions';
+      const topActions = document.createElement('div');
+      topActions.style.display = 'flex';
+      topActions.style.gap = '6px';
 
-      // Upvote Button
-      const upvoteBtn = document.createElement('button');
-      upvoteBtn.className = 'pack-action-btn';
-      upvoteBtn.title = 'Upvote Pack';
-      upvoteBtn.innerHTML = `
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
-        <span>${pack.upvotes || 0}</span>
-      `;
-      upvoteBtn.onclick = async (e) => {
-        e.stopPropagation();
-        try {
-          const res = await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/upvote`, { method: 'POST' });
-          if (res.ok) {
-            pack.upvotes = (pack.upvotes || 0) + 1;
-            const countSpan = upvoteBtn.querySelector('span');
-            if (countSpan) countSpan.textContent = `${pack.upvotes}`;
-            upvoteBtn.classList.add('active');
-          }
-        } catch (err) {
-          console.error('Failed to upvote pack:', pack._id, err);
-        }
-      };
-
-      // Number of downloads text
-      const dlCount = document.createElement('span');
-      dlCount.className = 'pack-meta';
-      dlCount.style.marginRight = '2px';
-      dlCount.textContent = `${pack.downloads || 0} dls`;
-
-      // Download Button itself
-      const dlBtn = document.createElement('button');
-      dlBtn.className = 'pack-action-btn';
-      dlBtn.title = 'Download/Install Pack';
-      dlBtn.innerHTML = `
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-      `;
-
-      // Check if all shortcuts are already installed
-      const isInstalled = pack.shortcuts.every((s: any) => localShortcutIds.includes(s.id));
-      if (isInstalled) {
-        dlBtn.classList.add('active');
-        dlBtn.title = 'Already Installed';
-        dlBtn.disabled = true;
-        dlBtn.innerHTML = `
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        `;
-      } else {
-        dlBtn.onclick = async (e) => {
-          e.stopPropagation();
-          await addCommunityPackage(domain, pack, localShortcutIds);
-          loadCurrentShortcuts(); // refresh lists to update active shortcuts and active state
-        };
-      }
-
-      // Preview Button
       const previewBtn = document.createElement('button');
       previewBtn.className = 'pack-action-btn';
       previewBtn.title = 'Preview shortcuts on webpage';
-      previewBtn.innerHTML = `
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-        <span>Preview</span>
-      `;
+      previewBtn.style.padding = '4px 6px';
+      previewBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
       previewBtn.onclick = async (e) => {
         e.stopPropagation();
         try {
@@ -362,21 +323,126 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
               action: 'preview-package',
               shortcuts: pack.shortcuts
             });
-            window.close(); // Close popup so preview overlay is immediately fully visible
+            window.close();
           }
         } catch (err) {
-          console.error('Failed to send preview-package message:', err);
-          alert('Could not preview. Make sure you are on a webpage that has loaded the extension.');
+          console.error('Preview error:', err);
+          alert('Could not preview. Ensure the extension is loaded on this page.');
         }
       };
 
-      actions.appendChild(upvoteBtn);
-      actions.appendChild(dlCount);
-      actions.appendChild(dlBtn);
-      actions.appendChild(previewBtn);
+      const reportBtn = document.createElement('button');
+      reportBtn.className = 'pack-action-btn';
+      reportBtn.title = 'Report Inappropriate Pack';
+      reportBtn.style.padding = '4px 6px';
+      reportBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>`;
+      const isReported = pack.reportedBy && pack.reportedBy.includes(extensionId);
+      if (isReported) {
+        reportBtn.classList.add('active');
+        reportBtn.disabled = true;
+        reportBtn.title = 'Already Reported';
+      } else {
+        reportBtn.onclick = async (e) => {
+          e.stopPropagation();
+          try {
+            const res = await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/report`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ extensionId })
+            });
+            if (res.ok) {
+              reportBtn.classList.add('active');
+              reportBtn.disabled = true;
+              reportBtn.title = 'Already Reported';
+              alert('Pack reported. Our team will review it.');
+            }
+          } catch (err) {}
+        };
+      }
 
-      item.appendChild(authorInfo);
-      item.appendChild(actions);
+      topActions.appendChild(previewBtn);
+      topActions.appendChild(reportBtn);
+      header.appendChild(authorInfo);
+      header.appendChild(topActions);
+
+      // --- Footer Row ---
+      const footer = document.createElement('div');
+      footer.className = 'pack-item-footer';
+
+      const upvoteBtn = document.createElement('button');
+      upvoteBtn.className = 'pack-action-btn';
+      upvoteBtn.title = 'Upvote Pack';
+      upvoteBtn.style.flex = '1';
+      upvoteBtn.style.justifyContent = 'center';
+      upvoteBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+        <span>${pack.upvotes || 0}</span>
+      `;
+      const isUpvoted = pack.upvotedBy && pack.upvotedBy.includes(extensionId);
+      if (isUpvoted) {
+        upvoteBtn.classList.add('active');
+        upvoteBtn.disabled = true;
+        upvoteBtn.title = 'Already Upvoted';
+      } else {
+        upvoteBtn.onclick = async (e) => {
+          e.stopPropagation();
+          try {
+            const res = await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/upvote`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ extensionId })
+            });
+            if (res.ok) {
+              pack.upvotes = (pack.upvotes || 0) + 1;
+              const countSpan = upvoteBtn.querySelector('span');
+              if (countSpan) countSpan.textContent = `${pack.upvotes}`;
+              upvoteBtn.classList.add('active');
+              upvoteBtn.disabled = true;
+              upvoteBtn.title = 'Already Upvoted';
+            }
+          } catch (err) {
+            console.error('Failed to upvote pack:', pack._id, err);
+          }
+        };
+      }
+
+      const dlBtn = document.createElement('button');
+      dlBtn.className = 'pack-action-btn';
+      dlBtn.title = 'Install Pack';
+      dlBtn.style.flex = '1.5';
+      dlBtn.style.justifyContent = 'center';
+      dlBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <span>Install Pack</span>
+      `;
+
+      const isInstalled = pack.shortcuts.every((s: any) => localShortcutIds.includes(s.id));
+      if (isInstalled) {
+        dlBtn.classList.add('active');
+        dlBtn.title = 'Already Installed';
+        dlBtn.disabled = true;
+        dlBtn.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span>Installed</span>
+        `;
+      } else {
+        dlBtn.style.background = 'var(--fg)';
+        dlBtn.style.color = 'var(--bg)';
+        dlBtn.style.borderColor = 'var(--fg)';
+        dlBtn.onmouseenter = () => { dlBtn.style.opacity = '0.9'; };
+        dlBtn.onmouseleave = () => { dlBtn.style.opacity = '1'; };
+        dlBtn.onclick = async (e) => {
+          e.stopPropagation();
+          await addCommunityPackage(domain, pack, localShortcutIds, extensionId);
+          loadCurrentShortcuts(); // refresh lists to update active shortcuts and active state
+        };
+      }
+
+      footer.appendChild(upvoteBtn);
+      footer.appendChild(dlBtn);
+
+      item.appendChild(header);
+      item.appendChild(footer);
       commList.appendChild(item);
     });
   } catch (error) {
@@ -385,7 +451,7 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
   }
 }
 
-async function addCommunityPackage(domain: string, pack: any, localShortcutIds: string[]) {
+async function addCommunityPackage(domain: string, pack: any, localShortcutIds: string[], extensionId: string) {
   const data = await chrome.storage.sync.get('shortcuts');
   const shortcuts: Record<string, any> = data.shortcuts || {};
   if (!shortcuts[domain]) {
@@ -413,7 +479,11 @@ async function addCommunityPackage(domain: string, pack: any, localShortcutIds: 
   if (addedCount > 0) {
     await chrome.storage.sync.set({ shortcuts });
     try {
-      await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/download`, { method: 'POST' });
+      await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ extensionId })
+      });
     } catch (err) {
       console.warn('Failed to increment download counter:', err);
     }
