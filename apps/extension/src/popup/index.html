@@ -279,6 +279,119 @@
             background: var(--bg) !important;
             color: var(--accent) !important;
         }
+
+        /* TABS Styling */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 12px 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+            background: var(--bg);
+        }
+        .tab:hover:not(.active) {
+            color: var(--fg);
+        }
+        .tab-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Community Pack Items */
+        .pack-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+        }
+        .pack-item:hover {
+            border-color: var(--muted);
+        }
+        .pack-author-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1;
+        }
+        .pack-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 1.5px solid var(--border);
+            object-fit: cover;
+        }
+        .pack-details {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .pack-title {
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--fg);
+        }
+        .pack-meta {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+        .pack-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .pack-action-btn {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            cursor: pointer;
+            padding: 5px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+        .pack-action-btn:hover {
+            background: var(--surface);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        .pack-action-btn.active {
+            color: var(--accent);
+            border-color: var(--accent);
+            background: oklch(95% 0.05 250);
+        }
     </style>
 </head>
 <body>
@@ -290,41 +403,67 @@
         <div class="version mono">v1.0.0</div>
     </div>
 
-    <div class="content">
-        <div class="hero-action" id="start-binding">
-            <strong>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path></svg>
-                Pick Element
-            </strong>
-            <span>Select any UI element in the page</span>
+    <div class="tabs">
+        <div class="tab active" id="tab-active">Active</div>
+        <div class="tab" id="tab-library">
+            Library
+            <span id="library-badge" class="mono" style="font-size: 10px; padding: 1px 5px; background: var(--border); border-radius: 8px; color: var(--fg); display: none;">0</span>
         </div>
+    </div>
 
-        <div id="current-site-section">
-            <div class="section-title">
-                <span>Active on this page</span>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="mono" id="shortcut-count" style="font-size: 11px; padding: 2px 6px; background: var(--surface); border-radius: 10px; border: 1px solid var(--border);">0</span>
-                    <div class="share-dropdown-container" id="share-dropdown-container" style="display: none; position: relative;">
-                        <button class="footer-icon-btn" id="share-btn" title="Share" style="padding: 2px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
-                        </button>
-                        <div class="share-dropdown-menu" id="share-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; width: 140px; padding: 4px 0;">
-                            <button id="submit-to-library-option" style="width: 100%; border: none; background: none; color: var(--fg); padding: 8px 12px; font-size: 12px; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 500; outline: none;">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v15M5 10l7 7 7-7M19 21H5"></path></svg>
-                                Submit to library
+    <div class="content" style="gap: 0;">
+        <div id="view-active" class="tab-panel">
+            <div class="hero-action" id="start-binding">
+                <strong>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path></svg>
+                    Pick Element
+                </strong>
+                <span>Select any UI element in the page</span>
+            </div>
+
+            <div id="current-site-section">
+                <div class="section-title">
+                    <span>Active on this page</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="mono" id="shortcut-count" style="font-size: 11px; padding: 2px 6px; background: var(--surface); border-radius: 10px; border: 1px solid var(--border);">0</span>
+                        <div class="share-dropdown-container" id="share-dropdown-container" style="display: none; position: relative;">
+                            <button class="footer-icon-btn" id="share-btn" title="Share" style="padding: 2px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
                             </button>
+                            <div class="share-dropdown-menu" id="share-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; width: 140px; padding: 4px 0;">
+                                <button id="submit-to-library-option" style="width: 100%; border: none; background: none; color: var(--fg); padding: 8px 12px; font-size: 12px; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: 500; outline: none;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v15M5 10l7 7 7-7M19 21H5"></path></svg>
+                                    Submit to library
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="shortcuts-list" id="shortcut-list">
-                <!-- Shortcuts will be populated here -->
+                <div class="shortcuts-list" id="shortcut-list">
+                    <!-- Shortcuts will be populated here -->
+                </div>
+                
+                <div id="empty-state" class="empty-state" style="display: none;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    <div>No shortcuts bound on this site yet.</div>
+                </div>
             </div>
-            
-            <div id="empty-state" class="empty-state" style="display: none;">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                <div>No shortcuts bound on this site yet.</div>
+        </div>
+
+        <div id="view-library" class="tab-panel" style="display: none;">
+            <div id="community-site-section">
+                <div class="section-title" style="margin-bottom: 12px;">
+                    <span>Available in Library</span>
+                    <span class="mono" id="community-count" style="font-size: 11px; padding: 2px 6px; background: var(--surface); border-radius: 10px; border: 1px solid var(--border);">0</span>
+                </div>
+                <div class="shortcuts-list" id="community-shortcut-list">
+                    <!-- Community packages will be populated here -->
+                </div>
+                <div id="community-empty-state" class="empty-state" style="display: none;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    <div>No community packages for this site yet.</div>
+                </div>
             </div>
         </div>
     </div>

@@ -31,3 +31,18 @@ export interface CommunityShortcut extends Shortcut {
   upvotes: number;
   downloads: number;
 }
+
+export interface CommunityPack {
+  domain: string;
+  authorId: string;
+  authorEmail?: string;
+  shortcuts: Shortcut[];
+  upvotes: number;
+  downloads: number;
+  createdAt: number;
+  author?: {
+    name: string;
+    picture?: string;
+    email?: string;
+  };
+}

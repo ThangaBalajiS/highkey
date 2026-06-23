@@ -1,5 +1,5 @@
 import { getAuthToken, getUserProfile, clearAuthToken } from '../shared/auth';
-import { User, CommunityShortcut } from '@highkey/types';
+import { User } from '@highkey/types';
 
 const tableBody = document.getElementById('shortcut-table-body');
 const statsEl = document.getElementById('shortcut-stats');
@@ -47,7 +47,7 @@ let currentEditDomain: string = '';
 let capturedShortcut: any = null;
 let allShortcuts: { domain: string, shortcut: any }[] = [];
 let openDomain: string | null = null;
-let communityShortcuts: CommunityShortcut[] = [];
+let communityPacks: any[] = [];
 
 let isSignedUp = false;
 let submitDomain = '';
@@ -222,7 +222,7 @@ async function loadCommunity() {
   try {
     const response = await fetch(`${BACKEND_URL}/api/shortcuts?domain=${domain}`);
     if (response.ok) {
-      communityShortcuts = await response.json();
+      communityPacks = await response.json();
       renderCommunity();
     }
   } catch (error) {
@@ -234,9 +234,12 @@ function renderCommunity() {
   if (!communityList || !communityEmpty) return;
   
   const query = communitySearch.value.toLowerCase();
-  const filtered = communityShortcuts.filter(s => 
-    s.label.toLowerCase().includes(query) || 
-    s.selector.toLowerCase().includes(query)
+  const filtered = communityPacks.filter(pack => 
+    (pack.author?.name || 'Highkey User').toLowerCase().includes(query) ||
+    pack.shortcuts.some((s: any) => 
+      s.label.toLowerCase().includes(query) || 
+      s.selector.toLowerCase().includes(query)
+    )
   );
   
   communityList.innerHTML = '';
@@ -246,7 +249,8 @@ function renderCommunity() {
   }
   
   communityEmpty.style.display = 'none';
-  filtered.forEach(s => {
+
+  filtered.forEach(pack => {
     const card = document.createElement('div');
     card.style.cssText = `
       background: var(--surface);
@@ -258,62 +262,94 @@ function renderCommunity() {
       gap: 12px;
     `;
     
-    card.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div style="font-weight: 600; font-size: 15px;">${s.label}</div>
-        <div class="shortcut-badge">${formatShortcut(s.shortcut)}</div>
+    // Build the shortcuts list HTML for this pack
+    const listHtml = pack.shortcuts.map((s: any) => `
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--border); margin-bottom: 4px;">
+        <span style="font-weight: 500;">${s.label}</span>
+        <span class="shortcut-badge">${formatShortcut(s.shortcut)}</span>
       </div>
-      <div class="selector-code" style="max-width: 100%;" title="${s.selector}">${s.selector}</div>
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-        <div style="font-size: 12px; color: var(--muted); display: flex; gap: 12px;">
-          <span>↑ ${s.upvotes} upvotes</span>
-          <span>↓ ${s.downloads} downloads</span>
+    `).join('');
+
+    const avatarUrl = pack.author?.picture || 'https://www.gstatic.com/images/branding/product/1x/avatar_circle_blue_512dp.png';
+    const authorName = pack.author?.name || 'Highkey User';
+
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <img src="${avatarUrl}" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);" title="${authorName}" class="author-avatar-img">
+          <div>
+            <div style="font-weight: 600; font-size: 14px;">${authorName}</div>
+            <div style="font-size: 11px; color: var(--muted);">${pack.shortcuts.length} shortcut${pack.shortcuts.length === 1 ? '' : 's'}</div>
+          </div>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn-ghost upvote-btn" data-id="${s.id}" style="padding: 4px 8px; font-size: 12px;">Upvote</button>
-          <button class="btn-primary download-btn" data-id="${s.id}" style="padding: 4px 12px; font-size: 12px;">Download</button>
+        <div style="font-size: 12px; color: var(--muted); display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+          <span>↑ ${pack.upvotes || 0} upvotes</span>
+          <span>↓ ${pack.downloads || 0} downloads</span>
         </div>
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 4px; margin: 4px 0;">
+        ${listHtml}
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end;">
+        <button class="btn-ghost upvote-btn" style="padding: 6px 12px; font-size: 12px;">Upvote Pack</button>
+        <button class="btn-primary download-btn" style="padding: 6px 16px; font-size: 12px;">Download Pack</button>
       </div>
     `;
     
-    card.querySelector('.upvote-btn')?.addEventListener('click', () => upvoteShortcut(s.id));
-    card.querySelector('.download-btn')?.addEventListener('click', () => downloadShortcut(s));
+    card.querySelector('.upvote-btn')?.addEventListener('click', async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/upvote`, { method: 'POST' });
+        if (response.ok) {
+          const updated = await response.json();
+          pack.upvotes = updated.upvotes;
+          loadCommunity();
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    });
+
+    card.querySelector('.download-btn')?.addEventListener('click', () => downloadPackage(pack));
     
     communityList.appendChild(card);
   });
 }
 
-async function upvoteShortcut(id: string) {
-  try {
-    const response = await fetch(`${BACKEND_URL}/api/shortcuts/${id}/upvote`, { method: 'POST' });
-    if (response.ok) {
-      loadCommunity();
-    }
-  } catch (error) {
-    console.error('Upvote error:', error);
-  }
-}
-
-async function downloadShortcut(s: CommunityShortcut) {
+async function downloadPackage(pack: any) {
   const data = await chrome.storage.sync.get('shortcuts');
   const shortcuts: Record<string, any> = data.shortcuts || {};
-  if (!shortcuts[s.domain]) shortcuts[s.domain] = [];
   
-  // Check if already exists
-  if (shortcuts[s.domain].some((item: any) => item.id === s.id)) {
-    alert('You already have this shortcut!');
-    return;
+  let addedCount = 0;
+  for (const s of pack.shortcuts) {
+    if (!shortcuts[pack.domain]) shortcuts[pack.domain] = [];
+    
+    // Check if already exists
+    if (shortcuts[pack.domain].some((item: any) => item.id === s.id)) {
+      continue;
+    }
+    
+    const { authorId, upvotes, downloads, author, ...shortcutData } = s;
+    shortcuts[pack.domain].push({
+      ...shortcutData,
+      domain: pack.domain
+    });
+    addedCount++;
   }
-  
-  const { authorId, upvotes, downloads, ...shortcutData } = s;
-  shortcuts[s.domain].push(shortcutData);
-  await chrome.storage.sync.set({ shortcuts });
-  
-  // Track download
-  fetch(`${BACKEND_URL}/api/shortcuts/${s.id}/download`, { method: 'POST' }).catch(console.error);
-  
-  alert(`Successfully downloaded "${s.label}"!`);
-  loadDashboard();
+  if (addedCount > 0) {
+    await chrome.storage.sync.set({ shortcuts });
+    try {
+      await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/download`, { method: 'POST' });
+    } catch (err) {
+      console.warn(err);
+    }
+    alert(`Successfully downloaded ${addedCount} shortcuts from "${pack.author?.name || 'Highkey User'}"!`);
+    loadCommunity();
+    loadDashboard();
+  } else {
+    alert('All shortcuts from this pack are already installed!');
+  }
 }
 
 // Navigation handling
@@ -609,7 +645,7 @@ function openSubmitModal(domain: string, shortcuts: any[]) {
 
       const shortcutBadge = document.createElement('span');
       shortcutBadge.className = 'shortcut-badge';
-      shortcutBadge.textContent = formatShortcut(sc);
+      shortcutBadge.textContent = formatShortcut(sc.shortcut);
 
       label.appendChild(shortcutName);
       label.appendChild(shortcutBadge);
@@ -627,40 +663,39 @@ submitModalShareBtn.onclick = async () => {
     return;
   }
 
-  submitModalShareBtn.disabled = true;
-  submitModalShareBtn.textContent = 'Publishing...';
-
-  let successCount = 0;
+  const selectedShortcuts = [];
   for (let i = 0; i < checkboxes.length; i++) {
     const cb = checkboxes[i] as HTMLInputElement;
     const index = parseInt(cb.dataset.index || '0');
-    const shortcut = submitShortcuts[index];
-    
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/shortcuts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentToken}`
-        },
-        body: JSON.stringify({ domain: submitDomain, shortcut })
-      });
-      if (response.ok) {
-        successCount++;
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    selectedShortcuts.push(submitShortcuts[index]);
   }
 
-  submitModalShareBtn.disabled = false;
-  submitModalShareBtn.textContent = 'Share to Library';
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/shortcuts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentToken}`
+      },
+      body: JSON.stringify({ domain: submitDomain, shortcuts: selectedShortcuts })
+    });
+    
+    submitModalShareBtn.disabled = false;
+    submitModalShareBtn.textContent = 'Share to Library';
 
-  if (successCount > 0) {
-    alert(`Successfully published ${successCount} shortcut(s) to the library!`);
-    submitModal.style.display = 'none';
-  } else {
-    alert('Failed to publish shortcuts. Please try again.');
+    if (response.ok) {
+      alert(`Successfully published pack to the library!`);
+      submitModal.style.display = 'none';
+      loadCommunity();
+    } else {
+      const err = await response.json();
+      alert(`Failed to publish: ${err.error || 'Unknown error'}`);
+    }
+  } catch (e) {
+    console.error(e);
+    submitModalShareBtn.disabled = false;
+    submitModalShareBtn.textContent = 'Share to Library';
+    alert('Failed to publish. Is the backend server running?');
   }
 };
 

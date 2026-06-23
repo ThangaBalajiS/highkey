@@ -172,7 +172,25 @@ export default function Home() {
         setLoading(true);
         const res = await fetch('/api/shortcuts');
         if (res.ok) {
-          const data = await res.json();
+          const packs = await res.json();
+          // Flatten packs into shortcuts list
+          const data: CommunityShortcut[] = [];
+          if (Array.isArray(packs)) {
+            packs.forEach((p: any) => {
+              if (p.shortcuts && Array.isArray(p.shortcuts)) {
+                p.shortcuts.forEach((s: any) => {
+                  data.push({
+                    ...s,
+                    domain: p.domain,
+                    authorId: p.authorId,
+                    upvotes: p.upvotes || 0,
+                    downloads: p.downloads || 0,
+                    createdAt: p.createdAt || Date.now()
+                  });
+                });
+              }
+            });
+          }
           // Merge API data with seed data (deduplicating by ID)
           const merged = [...data];
           SEED_SHORTCUTS.forEach(seed => {

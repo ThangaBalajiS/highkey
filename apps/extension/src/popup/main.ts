@@ -1,5 +1,7 @@
 export {};
 
+const BACKEND_URL = 'http://localhost:4000';
+
 document.getElementById('start-binding')?.addEventListener('click', async () => {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -130,6 +132,8 @@ async function loadCurrentShortcuts() {
     if (shareContainer) {
       shareContainer.style.display = currentShortcuts.length > 0 ? 'inline-block' : 'none';
     }
+
+    loadCommunityShortcuts(domain, currentShortcuts.map((s: any) => s.id));
   }
 }
 
@@ -187,4 +191,232 @@ submitToLibOption?.addEventListener('click', async () => {
   chrome.tabs.create({ url: chrome.runtime.getURL(`src/dashboard/index.html?submit=${encodeURIComponent(domain)}`) });
 });
 
+// Tabs toggle setup
+const tabActive = document.getElementById('tab-active');
+const tabLibrary = document.getElementById('tab-library');
+const viewActive = document.getElementById('view-active');
+const viewLibrary = document.getElementById('view-library');
+
+tabActive?.addEventListener('click', () => {
+  tabActive.classList.add('active');
+  tabLibrary?.classList.remove('active');
+  if (viewActive) viewActive.style.display = 'flex';
+  if (viewLibrary) viewLibrary.style.display = 'none';
+});
+
+tabLibrary?.addEventListener('click', () => {
+  tabLibrary.classList.add('active');
+  tabActive?.classList.remove('active');
+  if (viewLibrary) viewLibrary.style.display = 'flex';
+  if (viewActive) viewActive.style.display = 'none';
+});
+
 loadCurrentShortcuts();
+
+async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]) {
+  const commSection = document.getElementById('community-site-section');
+  const commList = document.getElementById('community-shortcut-list');
+  const commCount = document.getElementById('community-count');
+  const commEmptyState = document.getElementById('community-empty-state');
+
+  if (!commSection || !commList || !commCount) return;
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/shortcuts?domain=${domain}`);
+    if (!response.ok) {
+      if (commEmptyState) commEmptyState.style.display = 'block';
+      commCount.textContent = '0';
+      commList.innerHTML = '';
+      return;
+    }
+
+    const packages: any[] = await response.json();
+
+    const badgeEl = document.getElementById('library-badge');
+    if (badgeEl) {
+      if (packages.length > 0) {
+        badgeEl.textContent = `${packages.length}`;
+        badgeEl.style.display = 'inline-block';
+      } else {
+        badgeEl.style.display = 'none';
+      }
+    }
+
+    if (packages.length === 0) {
+      if (commEmptyState) commEmptyState.style.display = 'block';
+      commCount.textContent = '0';
+      commList.innerHTML = '';
+      return;
+    }
+
+    if (commEmptyState) commEmptyState.style.display = 'none';
+    commCount.textContent = `${packages.length}`;
+    commList.innerHTML = '';
+
+    packages.forEach((pack) => {
+      const item = document.createElement('div');
+      item.className = 'pack-item';
+
+      const avatarUrl = pack.author?.picture || 'https://www.gstatic.com/images/branding/product/1x/avatar_circle_blue_512dp.png';
+      const authorName = pack.author?.name || 'Highkey User';
+
+      // Left part: profile image + name + meta
+      const authorInfo = document.createElement('div');
+      authorInfo.className = 'pack-author-info';
+
+      const avatar = document.createElement('img');
+      avatar.className = 'pack-avatar';
+      avatar.src = avatarUrl;
+      avatar.title = authorName; // Hover to show name
+
+      const details = document.createElement('div');
+      details.className = 'pack-details';
+
+      const title = document.createElement('div');
+      title.className = 'pack-title';
+      title.textContent = `${authorName}'s Pack`;
+      title.title = `${authorName}'s Pack`;
+
+      const meta = document.createElement('div');
+      meta.className = 'pack-meta';
+      meta.textContent = `${pack.shortcuts.length} shortcut${pack.shortcuts.length === 1 ? '' : 's'}`;
+
+      details.appendChild(title);
+      details.appendChild(meta);
+
+      authorInfo.appendChild(avatar);
+      authorInfo.appendChild(details);
+
+      // Right part: actions (Upvote button, downloads count, download button, preview button)
+      const actions = document.createElement('div');
+      actions.className = 'pack-actions';
+
+      // Upvote Button
+      const upvoteBtn = document.createElement('button');
+      upvoteBtn.className = 'pack-action-btn';
+      upvoteBtn.title = 'Upvote Pack';
+      upvoteBtn.innerHTML = `
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+        <span>${pack.upvotes || 0}</span>
+      `;
+      upvoteBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/upvote`, { method: 'POST' });
+          if (res.ok) {
+            pack.upvotes = (pack.upvotes || 0) + 1;
+            const countSpan = upvoteBtn.querySelector('span');
+            if (countSpan) countSpan.textContent = `${pack.upvotes}`;
+            upvoteBtn.classList.add('active');
+          }
+        } catch (err) {
+          console.error('Failed to upvote pack:', pack._id, err);
+        }
+      };
+
+      // Number of downloads text
+      const dlCount = document.createElement('span');
+      dlCount.className = 'pack-meta';
+      dlCount.style.marginRight = '2px';
+      dlCount.textContent = `${pack.downloads || 0} dls`;
+
+      // Download Button itself
+      const dlBtn = document.createElement('button');
+      dlBtn.className = 'pack-action-btn';
+      dlBtn.title = 'Download/Install Pack';
+      dlBtn.innerHTML = `
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      `;
+
+      // Check if all shortcuts are already installed
+      const isInstalled = pack.shortcuts.every((s: any) => localShortcutIds.includes(s.id));
+      if (isInstalled) {
+        dlBtn.classList.add('active');
+        dlBtn.title = 'Already Installed';
+        dlBtn.disabled = true;
+        dlBtn.innerHTML = `
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        `;
+      } else {
+        dlBtn.onclick = async (e) => {
+          e.stopPropagation();
+          await addCommunityPackage(domain, pack, localShortcutIds);
+          loadCurrentShortcuts(); // refresh lists to update active shortcuts and active state
+        };
+      }
+
+      // Preview Button
+      const previewBtn = document.createElement('button');
+      previewBtn.className = 'pack-action-btn';
+      previewBtn.title = 'Preview shortcuts on webpage';
+      previewBtn.innerHTML = `
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <span>Preview</span>
+      `;
+      previewBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab?.id) {
+            await chrome.tabs.sendMessage(tab.id, {
+              action: 'preview-package',
+              shortcuts: pack.shortcuts
+            });
+            window.close(); // Close popup so preview overlay is immediately fully visible
+          }
+        } catch (err) {
+          console.error('Failed to send preview-package message:', err);
+          alert('Could not preview. Make sure you are on a webpage that has loaded the extension.');
+        }
+      };
+
+      actions.appendChild(upvoteBtn);
+      actions.appendChild(dlCount);
+      actions.appendChild(dlBtn);
+      actions.appendChild(previewBtn);
+
+      item.appendChild(authorInfo);
+      item.appendChild(actions);
+      commList.appendChild(item);
+    });
+  } catch (error) {
+    console.error('Error loading community shortcuts in popup:', error);
+    if (commEmptyState) commEmptyState.style.display = 'block';
+  }
+}
+
+async function addCommunityPackage(domain: string, pack: any, localShortcutIds: string[]) {
+  const data = await chrome.storage.sync.get('shortcuts');
+  const shortcuts: Record<string, any> = data.shortcuts || {};
+  if (!shortcuts[domain]) {
+    shortcuts[domain] = [];
+  }
+
+  let addedCount = 0;
+  for (const item of pack.shortcuts) {
+    if (!localShortcutIds.includes(item.id)) {
+      const newShortcut = {
+        shortcut: item.shortcut,
+        selector: item.selector,
+        innerText: item.innerText || "",
+        label: item.label,
+        scope: item.scope,
+        path: item.path || null,
+        id: item.id,
+        createdAt: Date.now()
+      };
+      shortcuts[domain].push(newShortcut);
+      addedCount++;
+    }
+  }
+
+  if (addedCount > 0) {
+    await chrome.storage.sync.set({ shortcuts });
+    try {
+      await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/download`, { method: 'POST' });
+    } catch (err) {
+      console.warn('Failed to increment download counter:', err);
+    }
+    alert(`Successfully added ${addedCount} shortcuts from "${pack.author?.name || 'Highkey User'}"!`);
+  }
+}
