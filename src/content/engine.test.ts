@@ -98,14 +98,42 @@ describe('ShortcutEngine', () => {
     vi.mocked(broadcastToTab).mockClear();
   });
 
-  it('clicks the bound element', async () => {
+  it('clicks the bound element exactly once', async () => {
     const { onClick } = addTarget();
     engine = await startEngine([shortcut()]);
 
     press(document.body);
     await flush();
 
-    expect(onClick).toHaveBeenCalled();
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a toggle flipped after one press', async () => {
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = 'target';
+    setVisible(checkbox, true);
+    document.body.appendChild(checkbox);
+    engine = await startEngine([shortcut()]);
+
+    press(document.body);
+    await flush();
+
+    expect(checkbox.checked).toBe(true);
+  });
+
+  it('runs default actions like following a link', async () => {
+    const link = document.createElement('a');
+    link.href = '#next';
+    link.id = 'target';
+    setVisible(link, true);
+    document.body.appendChild(link);
+    engine = await startEngine([shortcut()]);
+
+    press(document.body);
+    await flush();
+
+    expect(window.location.hash).toBe('#next');
   });
 
   it('ignores keys typed into an input inside a shadow root', async () => {
@@ -128,13 +156,10 @@ describe('ShortcutEngine', () => {
     engine = await startEngine([shortcut()]);
 
     press(document.body);
-    await flush();
-    const clicks = onClick.mock.calls.length;
-    expect(clicks).toBeGreaterThan(0);
     const repeat = press(document.body, { repeat: true });
     await flush();
 
-    expect(onClick).toHaveBeenCalledTimes(clicks);
+    expect(onClick).toHaveBeenCalledTimes(1);
     expect(repeat.defaultPrevented).toBe(true);
   });
 

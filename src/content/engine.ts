@@ -208,12 +208,9 @@ export class ShortcutEngine {
       ctrlKey: false, altKey: false, shiftKey: false, metaKey: false
     };
 
-    // Store state before attempt
-    const initialUrl = window.location.href;
-
     deepTarget.focus();
-    
-    // Attempt 1: Manual Sequence (Best for SPAs)
+
+    // Manual Sequence (Best for SPAs)
     if (window.PointerEvent) {
       deepTarget.dispatchEvent(new PointerEvent('pointerdown', { ...eventOptions, pointerId: 1, pointerType: 'mouse' }));
     }
@@ -225,25 +222,8 @@ export class ShortcutEngine {
     }
     deepTarget.dispatchEvent(new MouseEvent('mouseup', releaseOptions));
     
-    const clickEvent = new MouseEvent('click', releaseOptions);
-    const wasPrevented = !deepTarget.dispatchEvent(clickEvent);
-
-    // Smart Check: Did Attempt 1 work?
-    // 1. Was it explicitly prevented by a router?
-    // 2. Did the URL change immediately?
-    if (wasPrevented || window.location.href !== initialUrl) {
-      console.log('Highkey: Click handled by manual sequence.');
-      return;
-    }
-
-    // Attempt 2: Fallback to native .click()
-    // We wrap this in a tiny timeout to let Attempt 1's handlers finish processing
-    setTimeout(() => {
-      if (window.location.href === initialUrl && typeof deepTarget.click === 'function') {
-        console.log('Highkey: Manual sequence ignored, falling back to native .click()');
-        deepTarget.click();
-      }
-    }, 10);
+    // Also runs default actions, so a second .click() would just click twice
+    deepTarget.dispatchEvent(new MouseEvent('click', releaseOptions));
   }
 
   private provideFeedback(el: HTMLElement) {
