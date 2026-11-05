@@ -1,4 +1,4 @@
-export {};
+import type { KeyCombo, Shortcut, ShortcutMap } from '../types';
 
 const tableBody = document.getElementById('shortcut-table-body');
 const statsEl = document.getElementById('shortcut-stats');
@@ -10,19 +10,19 @@ const modalCapture = document.getElementById('modal-capture') as HTMLElement;
 const modalSave = document.getElementById('modal-save') as HTMLButtonElement;
 const modalCancel = document.getElementById('modal-cancel') as HTMLButtonElement;
 
-let currentEditItem: any = null;
+let currentEditItem: Shortcut | null = null;
 let currentEditDomain: string = '';
-let capturedShortcut: any = null;
-let allShortcuts: { domain: string, shortcut: any }[] = [];
+let capturedShortcut: KeyCombo | null = null;
+let allShortcuts: { domain: string, shortcut: Shortcut }[] = [];
 let openDomain: string | null = null;
 
 async function loadDashboard() {
   const data = await chrome.storage.local.get('shortcuts');
-  const shortcutsMap: Record<string, any> = data.shortcuts || {};
+  const shortcutsMap = (data.shortcuts || {}) as ShortcutMap;
   
   allShortcuts = [];
   for (const [domain, list] of Object.entries(shortcutsMap)) {
-    (list as any[]).forEach(s => {
+    list.forEach(s => {
       allShortcuts.push({ domain, shortcut: s });
     });
   }
@@ -160,7 +160,7 @@ function renderTable() {
 
 searchInput.addEventListener('input', renderTable);
 
-function openModal(domain: string, item: any) {
+function openModal(domain: string, item: Shortcut) {
   currentEditItem = item;
   currentEditDomain = domain;
   capturedShortcut = { ...item.shortcut };
@@ -206,7 +206,7 @@ modalCapture.onclick = () => {
 };
 
 modalSave.onclick = async () => {
-  if (!currentEditItem) return;
+  if (!currentEditItem || !capturedShortcut) return;
   
   const updates = {
     label: modalLabel.value,
@@ -227,17 +227,17 @@ window.onclick = (event) => {
   }
 };
 
-async function updateShortcut(domain: string, id: string, updates: any) {
+async function updateShortcut(domain: string, id: string, updates: Partial<Shortcut>) {
   const data = await chrome.storage.local.get('shortcuts');
-  const shortcuts: Record<string, any> = data.shortcuts || {};
+  const shortcuts = (data.shortcuts || {}) as ShortcutMap;
   if (shortcuts[domain]) {
-    shortcuts[domain] = shortcuts[domain].map((s: any) => s.id === id ? { ...s, ...updates } : s);
+    shortcuts[domain] = shortcuts[domain].map(s => s.id === id ? { ...s, ...updates } : s);
     await chrome.storage.local.set({ shortcuts });
     loadDashboard();
   }
 }
 
-function formatShortcut(sc: any) {
+function formatShortcut(sc: KeyCombo) {
   const parts = [];
   if (sc.meta) parts.push('⌘');
   if (sc.ctrl) parts.push('⌃');
@@ -249,9 +249,9 @@ function formatShortcut(sc: any) {
 
 async function deleteShortcut(domain: string, id: string) {
   const data = await chrome.storage.local.get('shortcuts');
-  const shortcuts: Record<string, any> = data.shortcuts || {};
+  const shortcuts = (data.shortcuts || {}) as ShortcutMap;
   if (shortcuts[domain]) {
-    shortcuts[domain] = shortcuts[domain].filter((s: any) => s.id !== id);
+    shortcuts[domain] = shortcuts[domain].filter(s => s.id !== id);
     if (shortcuts[domain].length === 0) delete shortcuts[domain];
     await chrome.storage.local.set({ shortcuts });
     loadDashboard();
