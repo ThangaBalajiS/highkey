@@ -54,7 +54,7 @@ function press(target: EventTarget, init: KeyboardEventInit = {}) {
 const flush = () => vi.advanceTimersByTimeAsync(1000);
 
 async function startEngine(shortcuts: unknown[]) {
-  vi.mocked(chrome.storage.sync.get).mockResolvedValue({ shortcuts: { 'example.test': shortcuts } } as never);
+  vi.mocked(chrome.storage.local.get).mockResolvedValue({ shortcuts: { 'example.test': shortcuts } } as never);
   const engine = new ShortcutEngine();
   engine.start();
   await flush();
@@ -68,7 +68,6 @@ describe('ShortcutEngine', () => {
     vi.useFakeTimers();
     vi.stubGlobal('chrome', {
       storage: {
-        sync: { get: vi.fn() },
         local: { get: vi.fn() },
         onChanged: { addListener: vi.fn() }
       },

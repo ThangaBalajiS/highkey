@@ -1,5 +1,6 @@
 import { getAuthToken, getUserProfile, clearAuthToken } from '../shared/auth';
 import { User } from '@highkey/types';
+import { getShortcuts, saveShortcuts } from '../shared/storage';
 
 async function getExtensionId(): Promise<string> {
   const data = await chrome.storage.local.get('extensionId');
@@ -70,8 +71,7 @@ let submitShortcuts: any[] = [];
 const BACKEND_URL = 'http://localhost:4000';
 
 async function loadDashboard() {
-  const data = await chrome.storage.sync.get('shortcuts');
-  const shortcutsMap: Record<string, any> = data.shortcuts || {};
+  const shortcutsMap = await getShortcuts();
   
   allShortcuts = [];
   for (const [domain, list] of Object.entries(shortcutsMap)) {
@@ -393,8 +393,7 @@ function renderCommunity() {
 }
 
 async function downloadPackage(pack: any) {
-  const data = await chrome.storage.sync.get('shortcuts');
-  const shortcuts: Record<string, any> = data.shortcuts || {};
+  const shortcuts = await getShortcuts();
   
   let addedCount = 0;
   for (const s of pack.shortcuts) {
@@ -413,7 +412,7 @@ async function downloadPackage(pack: any) {
     addedCount++;
   }
   if (addedCount > 0) {
-    await chrome.storage.sync.set({ shortcuts });
+    await saveShortcuts(shortcuts);
     try {
       const extensionId = await getExtensionId();
       await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/download`, {
@@ -663,11 +662,10 @@ window.onclick = (event) => {
 };
 
 async function updateShortcut(domain: string, id: string, updates: any) {
-  const data = await chrome.storage.sync.get('shortcuts');
-  const shortcuts: Record<string, any> = data.shortcuts || {};
+  const shortcuts = await getShortcuts();
   if (shortcuts[domain]) {
     shortcuts[domain] = shortcuts[domain].map((s: any) => s.id === id ? { ...s, ...updates } : s);
-    await chrome.storage.sync.set({ shortcuts });
+    await saveShortcuts(shortcuts);
     loadDashboard();
   }
 }
@@ -683,12 +681,11 @@ function formatShortcut(sc: any) {
 }
 
 async function deleteShortcut(domain: string, id: string) {
-  const data = await chrome.storage.sync.get('shortcuts');
-  const shortcuts: Record<string, any> = data.shortcuts || {};
+  const shortcuts = await getShortcuts();
   if (shortcuts[domain]) {
     shortcuts[domain] = shortcuts[domain].filter((s: any) => s.id !== id);
     if (shortcuts[domain].length === 0) delete shortcuts[domain];
-    await chrome.storage.sync.set({ shortcuts });
+    await saveShortcuts(shortcuts);
     loadDashboard();
   }
 }
@@ -772,8 +769,8 @@ getAuthToken(false).then(async (token) => {
 });
 
 document.getElementById('export-btn')?.addEventListener('click', async () => {
-  const data = await chrome.storage.sync.get('shortcuts');
-  const blob = new Blob([JSON.stringify(data.shortcuts || {}, null, 2)], { type: 'application/json' });
+  const shortcuts = await getShortcuts();
+  const blob = new Blob([JSON.stringify(shortcuts, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -792,7 +789,7 @@ document.getElementById('import-btn')?.addEventListener('click', () => {
       reader.onload = async (re: any) => {
         try {
           const imported = JSON.parse(re.target.result);
-          await chrome.storage.sync.set({ shortcuts: imported });
+          await saveShortcuts(imported);
           loadDashboard();
         } catch (err) {
           alert('Failed to import shortcuts. Invalid JSON.');
@@ -958,8 +955,7 @@ if (submitDomainParam) {
   const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
   window.history.replaceState({ path: newUrl }, '', newUrl);
 
-  chrome.storage.sync.get('shortcuts').then((data) => {
-    const shortcuts = (data.shortcuts || {}) as Record<string, any>;
+  getShortcuts().then((shortcuts) => {
     const domainShortcuts = shortcuts[submitDomainParam] || [];
     if (domainShortcuts.length > 0) {
       openSubmitModal(submitDomainParam, domainShortcuts);

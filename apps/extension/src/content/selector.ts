@@ -1,4 +1,5 @@
-import type { Keybinding, Shortcut, ShortcutMap } from '@highkey/types';
+import type { Keybinding, Shortcut } from '@highkey/types';
+import { getShortcuts, saveShortcuts } from '../shared/storage';
 import { broadcastToTab, getFrameOrigin, getSiteDomain } from './frame';
 
 export class VisualSelector {
@@ -314,8 +315,7 @@ export class VisualSelector {
       console.log('Highkey: Generated selector:', this.currentSelector);
       
       if (this.remappingId) {
-        const data = await chrome.storage.sync.get('shortcuts');
-        const shortcuts = (data.shortcuts || {}) as ShortcutMap;
+        const shortcuts = await getShortcuts();
         const domainShortcuts = shortcuts[getSiteDomain()] || [];
         const original = domainShortcuts.find(s => s.id === this.remappingId);
         
@@ -360,8 +360,7 @@ export class VisualSelector {
 
     let shortcut: Keybinding | undefined;
     if (this.remappingId) {
-      const data = await chrome.storage.sync.get('shortcuts');
-      const shortcuts = (data.shortcuts || {}) as ShortcutMap;
+      const shortcuts = await getShortcuts();
       const domainShortcuts = shortcuts[getSiteDomain()] || [];
       const original = domainShortcuts.find(s => s.id === this.remappingId);
       shortcut = original?.shortcut;
@@ -405,8 +404,7 @@ export class VisualSelector {
                   this.lastElement?.getAttribute('aria-label') || 
                   'Unnamed Shortcut';
 
-    const data = await chrome.storage.sync.get('shortcuts');
-    const shortcuts = (data.shortcuts || {}) as ShortcutMap;
+    const shortcuts = await getShortcuts();
 
     if (!shortcuts[domain]) shortcuts[domain] = [];
 
@@ -428,7 +426,7 @@ export class VisualSelector {
       shortcuts[domain].push(entry);
     }
 
-    await chrome.storage.sync.set({ shortcuts });
+    await saveShortcuts(shortcuts);
     }
 
   private generateResilientSelector(el: HTMLElement): string {

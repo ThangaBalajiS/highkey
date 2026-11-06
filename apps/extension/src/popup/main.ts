@@ -1,4 +1,4 @@
-export {};
+import { getShortcuts, saveShortcuts } from '../shared/storage';
 
 async function getExtensionId(): Promise<string> {
   const data = await chrome.storage.local.get('extensionId');
@@ -41,8 +41,7 @@ async function loadCurrentShortcuts() {
 
   const url = new URL(tab.url);
   const domain = url.hostname;
-  const data = await chrome.storage.sync.get('shortcuts');
-  const shortcuts: Record<string, any> = data.shortcuts || {};
+  const shortcuts = await getShortcuts();
   const currentShortcuts = shortcuts[domain] || [];
 
   const list = document.getElementById('shortcut-list');
@@ -146,23 +145,21 @@ async function loadCurrentShortcuts() {
 }
 
 async function updateShortcut(domain: string, id: string, updates: Partial<any>) {
-  const data = await chrome.storage.sync.get('shortcuts');
-  const shortcuts: Record<string, any> = data.shortcuts || {};
+  const shortcuts = await getShortcuts();
   if (shortcuts[domain]) {
     shortcuts[domain] = shortcuts[domain].map((s: any) => 
       s.id === id ? { ...s, ...updates } : s
     );
-    await chrome.storage.sync.set({ shortcuts });
+    await saveShortcuts(shortcuts);
   }
 }
 
 async function deleteShortcut(domain: string, id: string) {
-  const data = await chrome.storage.sync.get('shortcuts');
-  const shortcuts: Record<string, any> = data.shortcuts || {};
+  const shortcuts = await getShortcuts();
   if (shortcuts[domain]) {
     shortcuts[domain] = shortcuts[domain].filter((s: any) => s.id !== id);
     if (shortcuts[domain].length === 0) delete shortcuts[domain];
-    await chrome.storage.sync.set({ shortcuts });
+    await saveShortcuts(shortcuts);
   }
 }
 
@@ -452,8 +449,7 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
 }
 
 async function addCommunityPackage(domain: string, pack: any, localShortcutIds: string[], extensionId: string) {
-  const data = await chrome.storage.sync.get('shortcuts');
-  const shortcuts: Record<string, any> = data.shortcuts || {};
+  const shortcuts = await getShortcuts();
   if (!shortcuts[domain]) {
     shortcuts[domain] = [];
   }
@@ -477,7 +473,7 @@ async function addCommunityPackage(domain: string, pack: any, localShortcutIds: 
   }
 
   if (addedCount > 0) {
-    await chrome.storage.sync.set({ shortcuts });
+    await saveShortcuts(shortcuts);
     try {
       await fetch(`${BACKEND_URL}/api/shortcuts/${pack._id}/download`, {
         method: 'POST',

@@ -1,4 +1,5 @@
-import type { Keybinding, Shortcut, ShortcutMap } from '@highkey/types';
+import type { Keybinding, Shortcut } from '@highkey/types';
+import { getShortcuts } from '../shared/storage';
 import { broadcastToTab, getSiteDomain, ownsShortcut } from './frame';
 
 export class ShortcutEngine {
@@ -10,7 +11,7 @@ export class ShortcutEngine {
     
     // Listen for storage changes to refresh shortcuts without page reload
     chrome.storage.onChanged.addListener((changes, area) => {
-      if ((area === 'local' || area === 'sync') && changes.shortcuts) {
+      if (area === 'local' && changes.shortcuts) {
         this.loadShortcuts();
       }
     });
@@ -18,20 +19,7 @@ export class ShortcutEngine {
 
   private async loadShortcuts() {
     const domain = getSiteDomain();
-    
-    // Attempt to load from sync first, then fallback to local (migration)
-    let data = await chrome.storage.sync.get('shortcuts');
-    if (!data.shortcuts) {
-      data = await chrome.storage.local.get('shortcuts');
-      if (data.shortcuts) {
-        console.log('Highkey: Migrating local shortcuts to sync...');
-        await chrome.storage.sync.set({ shortcuts: data.shortcuts });
-        // Optional: clear local storage after migration
-        // await chrome.storage.local.remove('shortcuts');
-      }
-    }
-
-    const allShortcuts = (data.shortcuts || {}) as ShortcutMap;
+    const allShortcuts = await getShortcuts();
     this.shortcuts = allShortcuts[domain] || [];
     console.log(`Highkey: Loaded ${this.shortcuts.length} shortcuts for ${domain}`);
   }
