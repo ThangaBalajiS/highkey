@@ -1,11 +1,12 @@
+import type { KeyCombo, Shortcut, ShortcutMap } from '../types';
+import { broadcastToTab, getSiteDomain, ownsShortcut } from './frame';
+
 export class ShortcutEngine {
-  private shortcuts: any[] = [];
-  private currentPath: string = window.location.pathname;
+  private shortcuts: Shortcut[] = [];
 
   constructor() {
     this.loadShortcuts();
     this.handleKeyDown = this.handleKeyDown.bind(this);
-    this.observeURLChanges();
     
     // Listen for storage changes to refresh shortcuts without page reload
     chrome.storage.onChanged.addListener((changes, area) => {
@@ -16,26 +17,11 @@ export class ShortcutEngine {
   }
 
   private async loadShortcuts() {
-    const domain = window.location.hostname;
+    const domain = getSiteDomain();
     const data = await chrome.storage.local.get('shortcuts');
-    const allShortcuts: any = data.shortcuts || {};
+    const allShortcuts = (data.shortcuts || {}) as ShortcutMap;
     this.shortcuts = allShortcuts[domain] || [];
     console.log(`Highkey: Loaded ${this.shortcuts.length} shortcuts for ${domain}`);
-  }
-
-  private observeURLChanges() {
-    let lastPath = window.location.pathname;
-    setInterval(() => {
-      if (window.location.pathname !== lastPath) {
-        lastPath = window.location.pathname;
-        this.currentPath = lastPath;
-        console.log(`Highkey: URL changed to ${lastPath}`);
-      }
-    }, 1000);
-
-    window.addEventListener('popstate', () => {
-      this.currentPath = window.location.pathname;
-    });
   }
 
   public start() {
@@ -46,32 +32,60 @@ export class ShortcutEngine {
     document.removeEventListener('keydown', this.handleKeyDown, true);
   }
 
+  public runShortcut(combo: KeyCombo) {
+    const shortcut = this.findLocalShortcut(combo);
+    if (shortcut) this.executeShortcut(shortcut);
+  }
+
   private handleKeyDown(e: KeyboardEvent) {
-    if (this.isUserTyping(e)) return;
+    if (!e.key || this.isUserTyping(e)) return;
 
-    const matchedShortcut = this.shortcuts.find(s => {
-      const sc = s.shortcut;
-      
-      const keyMatch = (
-        sc.key === e.key.toLowerCase() &&
-        sc.ctrl === e.ctrlKey &&
-        sc.shift === e.shiftKey &&
-        sc.alt === e.altKey &&
-        sc.meta === e.metaKey
-      );
+    const combo: KeyCombo = {
+      key: e.key.toLowerCase(),
+      ctrl: e.ctrlKey,
+      shift: e.shiftKey,
+      alt: e.altKey,
+      meta: e.metaKey
+    };
 
-      if (!keyMatch) return false;
+    const shortcut = this.findLocalShortcut(combo);
+    const inThisFrame = shortcut && this.deepQuerySelector(shortcut);
+    const inOtherFrame = !inThisFrame && this.shortcuts.some(s => !ownsShortcut(s) && this.matchesCombo(s, combo));
+    if (!inThisFrame && !inOtherFrame) return;
 
-      if (s.scope === 'domain' || !s.scope) return true;
-      return this.matchPath(s.path, this.currentPath);
-    });
+    // Has to happen before any await, or the page has already seen the key
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
 
-    if (matchedShortcut) {
-      this.executeShortcut(matchedShortcut, e);
+    if (inThisFrame) {
+      this.executeShortcut(shortcut);
+    } else {
+      broadcastToTab({ action: 'run-shortcut', combo });
     }
   }
 
-  private matchPath(pattern: string, currentPath: string): boolean {
+  private findLocalShortcut(combo: KeyCombo): Shortcut | undefined {
+    return this.shortcuts.find(s => {
+      if (!ownsShortcut(s) || !this.matchesCombo(s, combo)) return false;
+
+      if (s.scope === 'domain' || !s.scope) return true;
+      return this.matchPath(s.path, window.location.pathname);
+    });
+  }
+
+  private matchesCombo(s: Shortcut, combo: KeyCombo): boolean {
+    const sc = s.shortcut;
+    return (
+      sc.key === combo.key &&
+      sc.ctrl === combo.ctrl &&
+      sc.shift === combo.shift &&
+      sc.alt === combo.alt &&
+      sc.meta === combo.meta
+    );
+  }
+
+  private matchPath(pattern: string | null | undefined, currentPath: string): boolean {
     if (!pattern) return false;
     const regexSource = pattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
@@ -81,20 +95,19 @@ export class ShortcutEngine {
   }
 
   private isUserTyping(e: KeyboardEvent): boolean {
-    const target = e.target as HTMLElement;
+    // e.target stops at the shadow host when the listener is on document
+    const target = e.composedPath()[0] as HTMLElement;
     const isEditable = target.isContentEditable || 
                      ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
     const hasModifier = e.ctrlKey || e.altKey || e.metaKey;
     return isEditable && !hasModifier;
   }
 
-  private async executeShortcut(shortcut: any, e: KeyboardEvent) {
+  private async executeShortcut(shortcut: Shortcut) {
     const element = await this.findWithRetry(shortcut);
     
     if (element) {
       console.log(`Highkey: Executing shortcut for label: ${shortcut.label}`);
-      e.preventDefault();
-      e.stopPropagation();
       this.provideFeedback(element);
       this.simulateFullClick(element);
     } else {
@@ -102,7 +115,7 @@ export class ShortcutEngine {
     }
   }
 
-  private async findWithRetry(shortcut: any, retries = 5, interval = 100): Promise<HTMLElement | null> {
+  private async findWithRetry(shortcut: Shortcut, retries = 5, interval = 100): Promise<HTMLElement | null> {
     for (let i = 0; i < retries; i++) {
       const el = this.deepQuerySelector(shortcut);
       if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) {
@@ -113,7 +126,7 @@ export class ShortcutEngine {
     return null;
   }
 
-  private deepQuerySelector(shortcut: any): HTMLElement | null {
+  private deepQuerySelector(shortcut: Shortcut): HTMLElement | null {
     const { selector, innerText } = shortcut;
     
     // 1. Gather all candidates across entire page (including Shadow DOM)
@@ -195,12 +208,9 @@ export class ShortcutEngine {
       ctrlKey: false, altKey: false, shiftKey: false, metaKey: false
     };
 
-    // Store state before attempt
-    const initialUrl = window.location.href;
-
     deepTarget.focus();
-    
-    // Attempt 1: Manual Sequence (Best for SPAs)
+
+    // Manual Sequence (Best for SPAs)
     if (window.PointerEvent) {
       deepTarget.dispatchEvent(new PointerEvent('pointerdown', { ...eventOptions, pointerId: 1, pointerType: 'mouse' }));
     }
@@ -212,25 +222,8 @@ export class ShortcutEngine {
     }
     deepTarget.dispatchEvent(new MouseEvent('mouseup', releaseOptions));
     
-    const clickEvent = new MouseEvent('click', releaseOptions);
-    const wasPrevented = !deepTarget.dispatchEvent(clickEvent);
-
-    // Smart Check: Did Attempt 1 work?
-    // 1. Was it explicitly prevented by a router?
-    // 2. Did the URL change immediately?
-    if (wasPrevented || window.location.href !== initialUrl) {
-      console.log('Highkey: Click handled by manual sequence.');
-      return;
-    }
-
-    // Attempt 2: Fallback to native .click()
-    // We wrap this in a tiny timeout to let Attempt 1's handlers finish processing
-    setTimeout(() => {
-      if (window.location.href === initialUrl && typeof deepTarget.click === 'function') {
-        console.log('Highkey: Manual sequence ignored, falling back to native .click()');
-        deepTarget.click();
-      }
-    }, 10);
+    // Also runs default actions, so a second .click() would just click twice
+    deepTarget.dispatchEvent(new MouseEvent('click', releaseOptions));
   }
 
   private provideFeedback(el: HTMLElement) {

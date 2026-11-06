@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Highkey - The Visual Binder",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Assign custom keyboard shortcuts to any UI element without CSS selectors.",
   "icons": {
     "16": "public/logo_16.png",
@@ -22,7 +22,8 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/content/index.ts"]
+      "js": ["src/content/index.ts"],
+      "all_frames": true
     }
   ],
   "commands": {

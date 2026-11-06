@@ -1,1 +1,0 @@
-chrome.commands.onCommand.addListener(e=>{e===`activate-binder`&&chrome.tabs.query({active:!0,currentWindow:!0},e=>{let t=e[0];t?.id&&chrome.tabs.sendMessage(t.id,{action:`toggle-binder`})})});

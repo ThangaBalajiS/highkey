@@ -1,3 +1,6 @@
+import type { KeyCombo, Shortcut, ShortcutMap } from '../types';
+import { broadcastToTab, getFrameOrigin, getSiteDomain } from './frame';
+
 export class VisualSelector {
   private root: HTMLElement;
   private shadow: ShadowRoot;
@@ -8,6 +11,7 @@ export class VisualSelector {
   private lastElement: HTMLElement | null = null;
   private currentSelector: string | null = null;
   private remappingId: string | null = null;
+  private frameId: string = Math.random().toString(36).slice(2);
 
   constructor() {
     this.root = document.createElement('div');
@@ -264,6 +268,11 @@ export class VisualSelector {
     this.currentSelector = null;
   }
 
+  // Every frame in the tab starts a binder; the one the user picks in wins
+  public yieldTo(frameId: string) {
+    if (this.isActive && frameId !== this.frameId) this.deactivate();
+  }
+
   private handleMouseMove(e: MouseEvent) {
     if (this.isCapturing || !this.isActive) return;
     const target = e.target as HTMLElement;
@@ -291,6 +300,7 @@ export class VisualSelector {
 
     e.preventDefault();
     e.stopPropagation();
+    broadcastToTab({ action: 'binder-claimed', frameId: this.frameId });
 
     const target = e.target as HTMLElement;
     if (target) {
@@ -305,9 +315,9 @@ export class VisualSelector {
       
       if (this.remappingId) {
         const data = await chrome.storage.local.get('shortcuts');
-        const shortcuts: any = data.shortcuts || {};
-        const domainShortcuts = shortcuts[window.location.hostname] || [];
-        const original = domainShortcuts.find((s: any) => s.id === this.remappingId);
+        const shortcuts = (data.shortcuts || {}) as ShortcutMap;
+        const domainShortcuts = shortcuts[getSiteDomain()] || [];
+        const original = domainShortcuts.find(s => s.id === this.remappingId);
         
         if (original) {
           await this.saveShortcut(original.shortcut, this.currentSelector, original.scope || 'domain');
@@ -348,12 +358,12 @@ export class VisualSelector {
     const scopeToggle = this.shadow.querySelector('#scope-toggle') as HTMLInputElement;
     const scope = scopeToggle?.checked ? 'domain' : 'path';
 
-    let shortcut = null;
+    let shortcut: KeyCombo | undefined;
     if (this.remappingId) {
       const data = await chrome.storage.local.get('shortcuts');
-      const shortcuts: any = data.shortcuts || {};
-      const domainShortcuts = shortcuts[window.location.hostname] || [];
-      const original = domainShortcuts.find((s: any) => s.id === this.remappingId);
+      const shortcuts = (data.shortcuts || {}) as ShortcutMap;
+      const domainShortcuts = shortcuts[getSiteDomain()] || [];
+      const original = domainShortcuts.find(s => s.id === this.remappingId);
       shortcut = original?.shortcut;
     }
 
@@ -382,8 +392,8 @@ export class VisualSelector {
     }).join('/');
   }
 
-  private async saveShortcut(shortcut: any, selector: string, scope: 'domain' | 'path') {
-    const domain = window.location.hostname;
+  private async saveShortcut(shortcut: KeyCombo, selector: string, scope: 'domain' | 'path') {
+    const domain = getSiteDomain();
     let path = window.location.pathname;
     
     if (scope === 'path') {
@@ -396,23 +406,24 @@ export class VisualSelector {
                   'Unnamed Shortcut';
 
     const data = await chrome.storage.local.get('shortcuts') || {};
-    const shortcuts: any = data.shortcuts || {};
+    const shortcuts = (data.shortcuts || {}) as ShortcutMap;
     
     if (!shortcuts[domain]) shortcuts[domain] = [];
     
-    const entry = {
+    const entry: Shortcut = {
       shortcut,
       selector,
       innerText,
       label,
       scope,
       path: scope === 'path' ? path : null,
+      frameOrigin: getFrameOrigin(),
       id: this.remappingId || crypto.randomUUID(),
       createdAt: Date.now()
     };
 
     if (this.remappingId) {
-      shortcuts[domain] = shortcuts[domain].map((s: any) => s.id === this.remappingId ? entry : s);
+      shortcuts[domain] = shortcuts[domain].map(s => s.id === this.remappingId ? entry : s);
     } else {
       shortcuts[domain].push(entry);
     }
