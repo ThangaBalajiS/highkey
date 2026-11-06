@@ -1,6 +1,4 @@
-export {};
-
-const BACKEND_URL = 'http://localhost:4000';
+import { BACKEND_URL } from '../shared/config';
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'activate-binder') {

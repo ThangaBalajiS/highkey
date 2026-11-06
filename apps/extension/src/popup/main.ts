@@ -1,3 +1,4 @@
+import { BACKEND_URL } from '../shared/config';
 import { getShortcuts, saveShortcuts } from '../shared/storage';
 
 async function getExtensionId(): Promise<string> {
@@ -8,7 +9,6 @@ async function getExtensionId(): Promise<string> {
   return newId;
 }
 
-const BACKEND_URL = 'http://localhost:4000';
 
 document.getElementById('start-binding')?.addEventListener('click', async () => {
   try {

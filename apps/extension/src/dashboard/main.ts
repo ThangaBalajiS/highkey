@@ -1,5 +1,6 @@
 import { getAuthToken, getUserProfile, clearAuthToken } from '../shared/auth';
 import { User } from '@highkey/types';
+import { BACKEND_URL } from '../shared/config';
 import { getShortcuts, saveShortcuts } from '../shared/storage';
 
 async function getExtensionId(): Promise<string> {
@@ -68,7 +69,6 @@ let isSignedUp = false;
 let submitDomain = '';
 let submitShortcuts: any[] = [];
 
-const BACKEND_URL = 'http://localhost:4000';
 
 async function loadDashboard() {
   const shortcutsMap = await getShortcuts();
@@ -714,7 +714,7 @@ async function publishShortcut(domain: string, shortcut: any) {
     }
   } catch (error) {
     console.error('Publish error:', error);
-    alert('Failed to publish. Is the backend server running?');
+    alert('Failed to publish. Please try again.');
   }
 }
 
@@ -922,7 +922,7 @@ submitModalShareBtn.onclick = async () => {
     console.error(e);
     submitModalShareBtn.disabled = false;
     submitModalShareBtn.textContent = 'Share to Library';
-    alert('Failed to publish. Is the backend server running?');
+    alert('Failed to publish. Please try again.');
   }
 };
 
