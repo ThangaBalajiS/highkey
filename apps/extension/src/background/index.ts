@@ -1,5 +1,31 @@
 import { BACKEND_URL } from '../shared/config';
 
+const COMMUNITY_DOMAINS_MAX_AGE = 6 * 60 * 60 * 1000;
+
+interface CommunityDomains {
+  counts: Record<string, number>;
+  fetchedAt: number;
+}
+
+// Fetches the whole list so the server never learns which sites someone visits
+async function getCommunityDomains(): Promise<Record<string, number>> {
+  const data = await chrome.storage.local.get('communityDomains');
+  const cached = data.communityDomains as CommunityDomains | undefined;
+  if (cached && Date.now() - cached.fetchedAt < COMMUNITY_DOMAINS_MAX_AGE) return cached.counts;
+
+  let counts = cached?.counts || {};
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/shortcuts/domains`);
+    if (response.ok) counts = (await response.json()).domains;
+  } catch (error) {
+    console.warn('Highkey background: Error fetching community domains', error);
+  }
+
+  // Saved even after a failure, so an outage doesn't mean a request per page
+  await chrome.storage.local.set({ communityDomains: { counts, fetchedAt: Date.now() } });
+  return counts;
+}
+
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'activate-binder') {
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -24,20 +50,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'open-dashboard') {
     chrome.runtime.openOptionsPage();
   } else if (request.action === 'check-shortcuts') {
-    fetch(`${BACKEND_URL}/api/shortcuts?domain=${request.domain}`)
-      .then((response) => {
-        if (response.ok) {
-          return response.json();
-        }
-        throw new Error('Network response was not ok');
-      })
-      .then((data) => {
-        sendResponse({ count: data.total || 0 });
-      })
-      .catch((error) => {
-        console.warn('Highkey background: Error fetching shortcuts', error);
-        sendResponse({ count: 0 });
-      });
+    getCommunityDomains().then((counts) => {
+      sendResponse({ count: Number(counts[request.domain]) || 0 });
+    });
     return true; // Keep the message channel open for asynchronous sendResponse
   }
 });

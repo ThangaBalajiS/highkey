@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST as download } from '@/app/api/shortcuts/[id]/download/route';
 import { POST as report } from '@/app/api/shortcuts/[id]/report/route';
 import { POST as upvote } from '@/app/api/shortcuts/[id]/upvote/route';
+import { GET as listDomains } from '@/app/api/shortcuts/domains/route';
 import { GET, POST as publish } from '@/app/api/shortcuts/route';
 import { validateGoogleToken } from '@/lib/auth';
 import CommunityPack from '@/models/CommunityPack';
@@ -16,7 +17,7 @@ vi.mock('@/models/User', () => ({
   }
 }));
 vi.mock('@/models/CommunityPack', () => ({
-  default: { findById: vi.fn(), findOne: vi.fn(), find: vi.fn(), countDocuments: vi.fn(), create: vi.fn() }
+  default: { findById: vi.fn(), findOne: vi.fn(), find: vi.fn(), countDocuments: vi.fn(), create: vi.fn(), aggregate: vi.fn() }
 }));
 
 const PACK_ID = '507f1f77bcf86cd799439011';
@@ -74,6 +75,12 @@ describe('community API', () => {
     pack = storedPack();
     vi.mocked(CommunityPack.findById).mockResolvedValue(pack as never);
     vi.mocked(CommunityPack.findOne).mockResolvedValue(pack as never);
+  });
+
+  it('lists how many packs each domain has', async () => {
+    vi.mocked(CommunityPack.aggregate).mockResolvedValue([{ _id: 'github.com', count: 2 }] as never);
+
+    expect(await (await listDomains()).json()).toEqual({ domains: { 'github.com': 2 } });
   });
 
   describe('listing packs', () => {
