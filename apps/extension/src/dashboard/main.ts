@@ -1,6 +1,7 @@
 import { getAuthToken, getUserProfile, clearAuthToken } from '../shared/auth';
 import { User } from '@highkey/types';
 import { BACKEND_URL } from '../shared/config';
+import { escapeHtml } from '../shared/html';
 import { getShortcuts, saveShortcuts } from '../shared/storage';
 
 async function getExtensionId(): Promise<string> {
@@ -285,13 +286,13 @@ function renderCommunity() {
     // Build the shortcuts list HTML for this pack
     const listHtml = pack.shortcuts.map((s: any) => `
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--border); margin-bottom: 4px;">
-        <span style="font-weight: 500;">${s.label}</span>
-        <span class="shortcut-badge">${formatShortcut(s.shortcut)}</span>
+        <span style="font-weight: 500;">${escapeHtml(s.label)}</span>
+        <span class="shortcut-badge">${escapeHtml(formatShortcut(s.shortcut))}</span>
       </div>
     `).join('');
 
-    const avatarUrl = pack.author?.picture || 'https://www.gstatic.com/images/branding/product/1x/avatar_circle_blue_512dp.png';
-    const authorName = pack.author?.name || 'Highkey User';
+    const avatarUrl = escapeHtml(pack.author?.picture || 'https://www.gstatic.com/images/branding/product/1x/avatar_circle_blue_512dp.png');
+    const authorName = escapeHtml(pack.author?.name || 'Highkey User');
 
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
@@ -511,20 +512,20 @@ function renderDiscover() {
         gap: 12px;
       `;
       
-      const avatarUrl = pack.author?.picture || 'https://www.gstatic.com/images/branding/product/1x/avatar_circle_blue_512dp.png';
-      const authorName = pack.author?.name || 'Highkey User';
+      const avatarUrl = escapeHtml(pack.author?.picture || 'https://www.gstatic.com/images/branding/product/1x/avatar_circle_blue_512dp.png');
+      const authorName = escapeHtml(pack.author?.name || 'Highkey User');
 
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
           <div style="display: flex; align-items: center; gap: 10px;">
             <img src="${avatarUrl}" style="width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);" title="${authorName}" class="author-avatar-img">
             <div>
-              <div style="font-weight: 600; font-size: 14px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${pack.name || `${authorName}'s Pack`}">${pack.name || `${authorName}'s Pack`}</div>
+              <div style="font-weight: 600; font-size: 14px; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(pack.name) || `${authorName}'s Pack`}">${escapeHtml(pack.name) || `${authorName}'s Pack`}</div>
               <div style="font-size: 11px; color: var(--muted);">By ${authorName}</div>
             </div>
           </div>
           <div style="font-size: 12px; color: var(--muted); display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
-            <span style="background: var(--bg); padding: 2px 6px; border-radius: 4px; font-weight: 500; color: var(--fg); border: 1px solid var(--border); margin-bottom: 2px;">${pack.domain}</span>
+            <span style="background: var(--bg); padding: 2px 6px; border-radius: 4px; font-weight: 500; color: var(--fg); border: 1px solid var(--border); margin-bottom: 2px;">${escapeHtml(pack.domain)}</span>
             <span>↑ ${pack.upvotes || 0} upvotes</span>
             <span>↓ ${pack.downloads || 0} downloads</span>
           </div>
@@ -534,8 +535,8 @@ function renderDiscover() {
           <div style="font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.05em;">${pack.shortcuts.length} Shortcuts</div>
           ${pack.shortcuts.slice(0, 3).map((s: any) => `
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--border); margin-bottom: 4px;">
-              <span style="font-weight: 500; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${s.label}">${s.label}</span>
-              <span class="shortcut-badge">${formatShortcut(s.shortcut)}</span>
+              <span style="font-weight: 500; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(s.label)}">${escapeHtml(s.label)}</span>
+              <span class="shortcut-badge">${escapeHtml(formatShortcut(s.shortcut))}</span>
             </div>
           `).join('')}
           ${pack.shortcuts.length > 3 ? `<div style="font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px;">+ ${pack.shortcuts.length - 3} more</div>` : ''}
