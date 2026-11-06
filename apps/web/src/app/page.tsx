@@ -154,6 +154,20 @@ const POPULAR_DOMAINS = [
   { name: "Gmail", query: "mail.google.com" }
 ];
 
+// An anonymous per-browser id, so the API can count each visitor once
+function visitorRequest(): RequestInit {
+  let visitorId = localStorage.getItem('highkey-visitor-id');
+  if (!visitorId) {
+    visitorId = crypto.randomUUID();
+    localStorage.setItem('highkey-visitor-id', visitorId);
+  }
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ extensionId: visitorId })
+  };
+}
+
 export default function Home() {
   const [shortcuts, setShortcuts] = useState<CommunityShortcut[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -172,7 +186,7 @@ export default function Home() {
         setLoading(true);
         const res = await fetch('/api/shortcuts');
         if (res.ok) {
-          const packs = await res.json();
+          const { packs } = await res.json();
           // Flatten packs into shortcuts list
           const data: CommunityShortcut[] = [];
           if (Array.isArray(packs)) {
@@ -239,7 +253,7 @@ export default function Home() {
     }
 
     try {
-      await fetch(`/api/shortcuts/${id}/upvote`, { method: 'POST' });
+      await fetch(`/api/shortcuts/${id}/upvote`, visitorRequest());
     } catch (err) {
       console.error("Upvote API failed:", err);
     }
@@ -252,7 +266,7 @@ export default function Home() {
 
     // Track download
     try {
-      await fetch(`/api/shortcuts/${item.id}/download`, { method: 'POST' });
+      await fetch(`/api/shortcuts/${item.id}/download`, visitorRequest());
       // Update count reactively
       setShortcuts(prev => 
         prev.map(s => s.id === item.id ? { ...s, downloads: s.downloads + 1 } : s)

@@ -233,7 +233,7 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
   }
 
   try {
-    const response = await fetch(`${BACKEND_URL}/api/shortcuts?domain=${domain}`);
+    const response = await fetch(`${BACKEND_URL}/api/shortcuts?domain=${domain}&extensionId=${extensionId}`);
     if (!response.ok) {
       if (commEmptyState) commEmptyState.style.display = 'block';
       commCount.textContent = '0';
@@ -333,7 +333,7 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
       reportBtn.title = 'Report Inappropriate Pack';
       reportBtn.style.padding = '4px 6px';
       reportBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>`;
-      const isReported = pack.reportedBy && pack.reportedBy.includes(extensionId);
+      const isReported = pack.hasReported;
       if (isReported) {
         reportBtn.classList.add('active');
         reportBtn.disabled = true;
@@ -375,7 +375,7 @@ async function loadCommunityShortcuts(domain: string, localShortcutIds: string[]
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
         <span>${pack.upvotes || 0}</span>
       `;
-      const isUpvoted = pack.upvotedBy && pack.upvotedBy.includes(extensionId);
+      const isUpvoted = pack.hasUpvoted;
       if (isUpvoted) {
         upvoteBtn.classList.add('active');
         upvoteBtn.disabled = true;
@@ -464,6 +464,7 @@ async function addCommunityPackage(domain: string, pack: any, localShortcutIds: 
         label: item.label,
         scope: item.scope,
         path: item.path || null,
+        frameOrigin: item.frameOrigin || null,
         id: item.id,
         createdAt: Date.now()
       };

@@ -1,8 +1,16 @@
+import mongoose from 'mongoose';
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import CommunityPack from '@/models/CommunityPack';
 import User from '@/models/User';
 import { validateGoogleToken } from '@/lib/auth';
+import {
+  MAX_PACK_NAME_LENGTH,
+  MAX_PACK_SHORTCUTS,
+  MAX_PAGE_SIZE,
+  sanitizeShortcut,
+  toPublicPack
+} from '@/lib/packs';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,8 +18,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const domain = searchParams.get('domain');
 
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '100');
+    const viewerId = searchParams.get('extensionId');
+
+    const page = Math.max(parseInt(searchParams.get('page') || '1') || 1, 1);
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '') || MAX_PAGE_SIZE, 1), MAX_PAGE_SIZE);
     const skip = (page - 1) * limit;
 
     const query = domain ? { domain } : {};
@@ -23,20 +33,9 @@ export async function GET(request: NextRequest) {
     const authorIds = [...new Set(packs.map(p => p.authorId))];
     const users = await User.find({ id: { $in: authorIds } }).lean();
 
-    const packsWithAuthors = packs.map(p => {
-      const author = users.find(u => u.id === p.authorId);
-      return {
-        ...p,
-        author: author ? {
-          name: author.name,
-          picture: author.picture,
-          email: author.email
-        } : {
-          name: "Highkey User",
-          picture: ""
-        }
-      };
-    });
+    const packsWithAuthors = packs.map(p =>
+      toPublicPack(p as never, users.find(u => u.id === p.authorId) as never, viewerId)
+    );
 
     return NextResponse.json({
       packs: packsWithAuthors,
@@ -81,19 +80,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { domain, name, shortcut, shortcuts } = body;
 
-    if (!domain) {
+    if (typeof domain !== 'string' || !domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 });
     }
 
-    const packName = name || `${domain} Shortcuts`;
+    const packName = String(name || `${domain} Shortcuts`).slice(0, MAX_PACK_NAME_LENGTH);
 
     let packShortcuts = [];
     if (shortcuts && Array.isArray(shortcuts)) {
-      packShortcuts = shortcuts;
+      packShortcuts = shortcuts.map(sanitizeShortcut);
     } else if (shortcut) {
-      packShortcuts = [shortcut];
+      packShortcuts = [sanitizeShortcut(shortcut)];
     } else {
       return NextResponse.json({ error: 'Shortcut or shortcuts are required' }, { status: 400 });
+    }
+
+    if (packShortcuts.length > MAX_PACK_SHORTCUTS) {
+      return NextResponse.json({ error: `Packs can have at most ${MAX_PACK_SHORTCUTS} shortcuts` }, { status: 400 });
     }
 
     // Upsert the pack for the user on that domain
@@ -101,14 +104,18 @@ export async function POST(request: NextRequest) {
 
     if (pack) {
       if (shortcuts && Array.isArray(shortcuts)) {
-        pack.shortcuts = shortcuts;
+        pack.shortcuts = packShortcuts;
       } else if (shortcut) {
-        const idx = pack.shortcuts.findIndex((s: any) => s.id === shortcut.id);
+        const [item] = packShortcuts;
+        const idx = pack.shortcuts.findIndex((s: any) => s.id === item.id);
         if (idx > -1) {
-          pack.shortcuts[idx] = shortcut;
+          pack.shortcuts[idx] = item;
         } else {
-          pack.shortcuts.push(shortcut);
+          pack.shortcuts.push(item);
         }
+      }
+      if (pack.shortcuts.length > MAX_PACK_SHORTCUTS) {
+        return NextResponse.json({ error: `Packs can have at most ${MAX_PACK_SHORTCUTS} shortcuts` }, { status: 400 });
       }
       pack.name = packName;
       pack.createdAt = Date.now();
@@ -126,8 +133,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(pack, { status: 201 });
+    return NextResponse.json(toPublicPack(pack, googleUser), { status: 201 });
   } catch (error) {
+    if (error instanceof mongoose.Error.ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     console.error('POST shortcut error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

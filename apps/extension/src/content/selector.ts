@@ -399,7 +399,8 @@ export class VisualSelector {
       path = this.generalizePath(path);
     }
 
-    const innerText = this.lastElement?.innerText?.trim() || '';
+    // A prefix still matches, and whole-page text shouldn't end up in published packs
+    const innerText = (this.lastElement?.innerText?.trim() || '').slice(0, 200);
     const label = innerText.slice(0, 50) || 
                   this.lastElement?.getAttribute('aria-label') || 
                   'Unnamed Shortcut';

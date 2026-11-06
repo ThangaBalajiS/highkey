@@ -38,17 +38,17 @@ export interface CommunityShortcut extends Shortcut {
 
 export interface CommunityPack {
   domain: string;
+  name: string;
   authorId: string;
-  authorEmail?: string;
   shortcuts: Shortcut[];
   upvotes: number;
-  upvotedBy?: string[];
   downloads: number;
-  downloadedBy?: string[];
   createdAt: number;
   author?: {
     name: string;
     picture?: string;
-    email?: string;
   };
+  hasUpvoted?: boolean;
+  hasDownloaded?: boolean;
+  hasReported?: boolean;
 }

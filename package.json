@@ -11,6 +11,7 @@
     "build:extension": "npm run build -w apps/extension",
     "dev:web": "npm run dev -w apps/web",
     "build:web": "npm run build -w apps/web",
-    "test:extension": "npm test -w apps/extension"
+    "test:extension": "npm test -w apps/extension",
+    "test:web": "npm test -w apps/web"
   }
 }

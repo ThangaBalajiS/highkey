@@ -238,7 +238,7 @@ async function loadCommunity() {
   }
   
   try {
-    const response = await fetch(`${BACKEND_URL}/api/shortcuts?domain=${domain}`);
+    const response = await fetch(`${BACKEND_URL}/api/shortcuts?domain=${domain}&extensionId=${await getExtensionId()}`);
     if (response.ok) {
       const data = await response.json();
       communityPacks = data.packs || [];
@@ -319,12 +319,12 @@ function renderCommunity() {
             : ''
         }
         ${
-          pack.reportedBy?.includes(extensionId)
+          pack.hasReported
             ? `<button class="btn-ghost report-btn active" disabled style="padding: 6px 12px; font-size: 12px;" title="Already Reported">Reported</button>`
             : `<button class="btn-ghost report-btn" style="padding: 6px 12px; font-size: 12px; color: var(--muted);">Report</button>`
         }
         ${
-          pack.upvotedBy?.includes(extensionId)
+          pack.hasUpvoted
             ? `<button class="btn-ghost upvote-btn active" disabled style="padding: 6px 12px; font-size: 12px;" title="Already Upvoted">Upvoted</button>`
             : `<button class="btn-ghost upvote-btn" style="padding: 6px 12px; font-size: 12px;">Upvote Pack</button>`
         }
@@ -342,8 +342,7 @@ function renderCommunity() {
         if (response.ok) {
           const updated = await response.json();
           pack.upvotes = updated.upvotes;
-          if (!pack.upvotedBy) pack.upvotedBy = [];
-          pack.upvotedBy.push(extensionId);
+          pack.hasUpvoted = true;
           renderCommunity();
         }
       } catch (e) {
@@ -359,8 +358,7 @@ function renderCommunity() {
           body: JSON.stringify({ extensionId })
         });
         if (response.ok) {
-          if (!pack.reportedBy) pack.reportedBy = [];
-          pack.reportedBy.push(extensionId);
+          pack.hasReported = true;
           alert('Pack reported. Our team will review it.');
           renderCommunity();
         }
@@ -471,7 +469,7 @@ async function loadDiscover() {
     discoverList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--muted); grid-column: 1 / -1;">Loading popular packs...</div>';
   }
   try {
-    const response = await fetch(`${BACKEND_URL}/api/shortcuts`); // No domain filter
+    const response = await fetch(`${BACKEND_URL}/api/shortcuts?extensionId=${await getExtensionId()}`); // No domain filter
     if (response.ok) {
       const data = await response.json();
       discoverPacks = data.packs || [];
@@ -544,11 +542,11 @@ function renderDiscover() {
         </div>
 
         <div style="display: flex; gap: 8px; margin-top: 4px;">
-          <button class="upvote-btn btn-ghost" style="flex: 1; display: flex; justify-content: center; gap: 4px; align-items: center;" ${pack.upvotedBy?.includes(extensionId) ? 'disabled' : ''}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="${pack.upvotedBy?.includes(extensionId) ? 'fill: currentColor;' : ''}"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-            ${pack.upvotedBy?.includes(extensionId) ? 'Upvoted' : 'Upvote'}
+          <button class="upvote-btn btn-ghost" style="flex: 1; display: flex; justify-content: center; gap: 4px; align-items: center;" ${pack.hasUpvoted ? 'disabled' : ''}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="${pack.hasUpvoted ? 'fill: currentColor;' : ''}"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            ${pack.hasUpvoted ? 'Upvoted' : 'Upvote'}
           </button>
-          <button class="download-btn btn-primary" style="flex: 1; display: flex; justify-content: center; gap: 4px; align-items: center;" ${pack.downloadedBy?.includes(extensionId) ? 'disabled' : ''}>
+          <button class="download-btn btn-primary" style="flex: 1; display: flex; justify-content: center; gap: 4px; align-items: center;" ${pack.hasDownloaded ? 'disabled' : ''}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
             Install
           </button>

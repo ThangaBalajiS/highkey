@@ -4,8 +4,9 @@ const ShortcutItemSchema = new mongoose.Schema({
   id: { type: String, required: true }, // Unique ID from extension
   label: { type: String, required: true },
   path: { type: String },
+  frameOrigin: { type: String },
   scope: { type: String, enum: ['domain', 'path'], default: 'domain' },
-  selector: { type: String, required: true },
+  selector: { type: String, required: true, maxlength: 1000 },
   innerText: { type: String },
   shortcut: {
     key: { type: String, required: true },
@@ -17,7 +18,7 @@ const ShortcutItemSchema = new mongoose.Schema({
 });
 
 const CommunityPackSchema = new mongoose.Schema({
-  domain: { type: String, required: true, index: true },
+  domain: { type: String, required: true, index: true, maxlength: 253 },
   name: { type: String, required: true },
   authorId: { type: String, required: true, index: true }, // Google User ID
   authorEmail: { type: String, index: true },
