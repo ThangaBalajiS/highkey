@@ -1,6 +1,6 @@
 {
   "name": "highkey-monorepo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -10,6 +10,7 @@
     "dev:extension": "npm run dev -w apps/extension",
     "build:extension": "npm run build -w apps/extension",
     "dev:web": "npm run dev -w apps/web",
-    "build:web": "npm run build -w apps/web"
+    "build:web": "npm run build -w apps/web",
+    "test:extension": "npm test -w apps/extension"
   }
 }

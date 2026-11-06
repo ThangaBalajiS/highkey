@@ -14,8 +14,12 @@ export interface Shortcut {
   innerText?: string;
   scope: 'domain' | 'path';
   path: string | null;
+  // Origin of the iframe holding the element; unset for the top frame
+  frameOrigin?: string | null;
   createdAt: number;
 }
+
+export type ShortcutMap = Record<string, Shortcut[]>;
 
 export interface User {
   id: string; // Google ID
