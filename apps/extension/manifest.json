@@ -11,7 +11,7 @@
   },
   "permissions": ["storage", "activeTab", "identity"],
   "oauth2": {
-    "client_id": "1080724829870-nv8anrv7fkj0l39b0irerkcra9t822j7.apps.googleusercontent.com",
+    "client_id": "969703209098-jalgc8ro68hhvbe7gpaue2ih7q54ntq5.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile"
