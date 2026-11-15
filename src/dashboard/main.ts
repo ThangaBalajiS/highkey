@@ -1,4 +1,4 @@
-import { getAuthToken, getUserProfile, clearAuthToken } from '../shared/auth';
+import { getSilentAuthToken, getUserProfile, signIn, signOut } from '../shared/auth';
 import { User } from '../types';
 import { BACKEND_URL } from '../shared/config';
 import { escapeHtml } from '../shared/html';
@@ -718,7 +718,7 @@ async function publishShortcut(domain: string, shortcut: any) {
 }
 
 async function handleSignIn(): Promise<boolean> {
-  const token = await getAuthToken(true);
+  const token = await signIn();
   if (token) {
     currentToken = token;
     const profile = await getUserProfile(token);
@@ -750,9 +750,7 @@ async function signInFrom(button: HTMLButtonElement): Promise<boolean> {
 }
 
 async function handleSignOut() {
-  if (currentToken) {
-    await clearAuthToken(currentToken);
-  }
+  await signOut(currentToken);
   currentUser = null;
   currentToken = null;
   updateUserUI();
@@ -773,8 +771,8 @@ function updateUserUI() {
 signInBtn.onclick = () => signInFrom(signInBtn);
 signOutLink.onclick = handleSignOut;
 
-// Try silent sign-in on load
-getAuthToken(false).then(async (token) => {
+// Restore the session on load, unless the person signed out
+getSilentAuthToken().then(async (token) => {
   if (token) {
     currentToken = token;
     const profile = await getUserProfile(token);

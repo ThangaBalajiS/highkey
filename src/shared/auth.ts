@@ -44,3 +44,29 @@ export async function clearAuthToken(token: string): Promise<void> {
     });
   });
 }
+
+// Removing the cached token doesn't take back the Google permission, so Chrome would
+// mint a fresh token on the next silent check and sign the person straight back in.
+// This remembers that they signed out until they choose to sign in again.
+const SIGNED_OUT_KEY = 'signedOut';
+
+export async function signIn(): Promise<string | null> {
+  const token = await getAuthToken(true);
+  if (token) {
+    await chrome.storage.local.remove(SIGNED_OUT_KEY);
+  }
+  return token;
+}
+
+export async function signOut(token: string | null): Promise<void> {
+  await chrome.storage.local.set({ [SIGNED_OUT_KEY]: true });
+  if (token) {
+    await clearAuthToken(token);
+  }
+}
+
+export async function getSilentAuthToken(): Promise<string | null> {
+  const data = await chrome.storage.local.get(SIGNED_OUT_KEY);
+  if (data[SIGNED_OUT_KEY]) return null;
+  return getAuthToken(false);
+}
