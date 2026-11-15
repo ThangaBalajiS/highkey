@@ -731,6 +731,24 @@ async function handleSignIn(): Promise<boolean> {
   return false;
 }
 
+// Chrome can take a few seconds to open Google's account picker, so show the click landed
+async function signInFrom(button: HTMLButtonElement): Promise<boolean> {
+  const label = button.innerHTML;
+  button.disabled = true;
+  button.classList.add('is-loading');
+  button.setAttribute('aria-busy', 'true');
+  button.innerHTML = '<span class="spinner" aria-hidden="true"></span>Signing in…';
+
+  try {
+    return await handleSignIn();
+  } finally {
+    button.innerHTML = label;
+    button.removeAttribute('aria-busy');
+    button.classList.remove('is-loading');
+    button.disabled = false;
+  }
+}
+
 async function handleSignOut() {
   if (currentToken) {
     await clearAuthToken(currentToken);
@@ -752,7 +770,7 @@ function updateUserUI() {
   }
 }
 
-signInBtn.onclick = handleSignIn;
+signInBtn.onclick = () => signInFrom(signInBtn);
 signOutLink.onclick = handleSignOut;
 
 // Try silent sign-in on load
@@ -930,7 +948,7 @@ submitModalCancel.onclick = () => {
 };
 
 submitGmailLoginBtn.onclick = async () => {
-  const success = await handleSignIn();
+  const success = await signInFrom(submitGmailLoginBtn);
   if (success) {
     openSubmitModal(submitDomain, submitShortcuts);
   } else {

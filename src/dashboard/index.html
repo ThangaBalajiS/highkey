@@ -220,6 +220,31 @@
             color: var(--muted);
             font-size: 14px;
         }
+
+        .btn-primary.is-loading {
+            align-items: center;
+            gap: 8px;
+            opacity: 0.8;
+            cursor: progress;
+        }
+
+        .spinner {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+            border: 2px solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .spinner { animation-duration: 2s; }
+        }
     </style>
 </head>
 <body>
