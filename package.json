@@ -1,17 +1,24 @@
 {
-  "name": "highkey-monorepo",
+  "name": "highkey",
   "version": "1.1.0",
-  "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "main": "index.js",
   "scripts": {
-    "dev:extension": "npm run dev -w apps/extension",
-    "build:extension": "npm run build -w apps/extension",
-    "dev:web": "npm run dev -w apps/web",
-    "build:web": "npm run build -w apps/web",
-    "test:extension": "npm test -w apps/extension",
-    "test:web": "npm test -w apps/web"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "zip": "npm run build && cd dist && zip -r ../highkey-v${npm_package_version}.zip . && cd ..",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.4.0",
+    "@types/chrome": "^0.1.40",
+    "jsdom": "^31.0.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vitest": "^5.1.0"
   }
 }

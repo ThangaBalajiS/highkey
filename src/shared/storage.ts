@@ -1,4 +1,4 @@
-import type { ShortcutMap } from '@highkey/types';
+import type { ShortcutMap } from '../types';
 
 // Stays in local storage: sync caps a single item at 8KB, which all of a user's
 // shortcuts would have to fit inside

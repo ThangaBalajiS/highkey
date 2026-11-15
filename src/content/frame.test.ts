@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getFrameOrigin, getSiteDomain, ownsShortcut } from './frame';
-import type { Shortcut } from '@highkey/types';
+import type { Shortcut } from '../types';
 
 function stubFrame(url: string, ancestorOrigins: string[] = []) {
   const { hostname, origin } = new URL(url);

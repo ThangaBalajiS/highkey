@@ -1,4 +1,4 @@
-import { User } from '@highkey/types';
+import { User } from '../types';
 
 export async function getAuthToken(interactive: boolean = true): Promise<string | null> {
   return new Promise((resolve) => {

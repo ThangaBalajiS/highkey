@@ -1,5 +1,5 @@
 import { getAuthToken, getUserProfile, clearAuthToken } from '../shared/auth';
-import { User } from '@highkey/types';
+import { User } from '../types';
 import { BACKEND_URL } from '../shared/config';
 import { escapeHtml } from '../shared/html';
 import { getShortcuts, saveShortcuts } from '../shared/storage';

@@ -1,4 +1,4 @@
-import type { Keybinding, Shortcut } from '@highkey/types';
+import type { Keybinding, Shortcut } from '../types';
 import { getShortcuts } from '../shared/storage';
 import { broadcastToTab, getSiteDomain, ownsShortcut } from './frame';
 

@@ -1,4 +1,4 @@
-import type { Shortcut } from '@highkey/types';
+import type { Shortcut } from '../types';
 
 // Shortcuts are stored under the tab's site, so iframes share the page's list
 export function getSiteDomain(): string {
